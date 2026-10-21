@@ -9,7 +9,8 @@ import {
   WorkspaceInfo,
   DocumentRecord,
   TransactionRecord,
-  ExtractedInvoice,
+  DocumentDetails,
+  IngestResult,
 } from "./types";
 
 export class OpenDeckApi {
@@ -42,14 +43,14 @@ export class OpenDeckApi {
   }
 
   /**
-   * Closes SQLCipher database connection, clears memory keys, and locks workspace.
+   * Closes database connection, clears memory keys, and locks workspace.
    */
   static async lockWorkspace(): Promise<void> {
     return await invoke<void>("lock_workspace");
   }
 
   /**
-   * Creates a new encrypted workspace initialized with Argon2id salt and SQLCipher key.
+   * Creates a new encrypted workspace initialized with Argon2id salt.
    */
   static async createWorkspace(
     displayName: string,
@@ -78,9 +79,16 @@ export class OpenDeckApi {
   }
 
   /**
-   * Fetches extracted invoice data with bounding boxes and line items.
+   * Ingests a local file (PDF, PNG, JPG, CSV) into the encrypted workspace.
    */
-  static async getInvoiceDetails(documentId: string): Promise<ExtractedInvoice> {
-    return await invoke<ExtractedInvoice>("get_invoice_details", { documentId });
+  static async ingestFile(filePath: string): Promise<IngestResult> {
+    return await invoke<IngestResult>("ingest_file", { filePath });
+  }
+
+  /**
+   * Fetches extracted document data with bounding boxes and line items.
+   */
+  static async getDocumentDetails(documentId: string): Promise<DocumentDetails> {
+    return await invoke<DocumentDetails>("get_document_details", { documentId });
   }
 }

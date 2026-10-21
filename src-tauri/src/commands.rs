@@ -1,7 +1,10 @@
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tauri::State;
 use uuid::Uuid;
 
+use crate::ingestion::{DocumentOrchestrator, IngestResult, NormalizedField, NormalizedLineItem};
 use crate::security::KeyDeriver;
 use crate::state::AppState;
 
@@ -58,13 +61,22 @@ pub struct TransactionRecord {
     pub review_state: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentDetails {
+    pub document: DocumentRecord,
+    pub fields: Vec<NormalizedField>,
+    pub line_items: Vec<NormalizedLineItem>,
+    pub invoice_total_minor: Option<i64>,
+}
+
 #[tauri::command]
 pub fn get_system_status(state: State<AppState>) -> SystemStatus {
     let ws_guard = state.active_workspace_id.lock().unwrap();
     SystemStatus {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         platform: std::env::consts::OS.to_string(),
-        offline: true, // Non-negotiable: runtime strictly offline
+        offline: true, // Runtime strictly offline
         ocr_ready: true,
         llm_ready: true,
         llm_model_id: "qwen-2.5-3b-instruct-q3_k_m".to_string(),
@@ -90,8 +102,8 @@ pub fn create_workspace(
 
     let workspace_id = Uuid::new_v4().to_string();
 
-    let mut db_guard = state.db.lock().unwrap();
-    if let Some(db) = db_guard.as_mut() {
+    let db_guard = state.db.lock().unwrap();
+    if let Some(db) = db_guard.as_ref() {
         db.create_workspace(
             &workspace_id,
             &display_name,
@@ -155,14 +167,222 @@ pub fn lock_workspace(state: State<AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn list_documents(state: State<AppState>) -> Result<Vec<DocumentRecord>, String> {
-    let _ws_guard = state.active_workspace_id.lock().unwrap();
-    // Return empty list initially until documents are ingested
-    Ok(Vec::new())
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, workspace_id, file_name, file_size_bytes, sha256, doc_type, page_count, status, imported_at
+             FROM documents WHERE workspace_id = ?1 ORDER BY imported_at DESC;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(DocumentRecord {
+                id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                file_name: row.get(2)?,
+                file_size_bytes: row.get(3)?,
+                sha256: row.get(4)?,
+                doc_type: row.get(5)?,
+                page_count: row.get(6)?,
+                status: row.get(7)?,
+                imported_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
 }
 
 #[tauri::command]
 pub fn list_transactions(state: State<AppState>) -> Result<Vec<TransactionRecord>, String> {
-    let _ws_guard = state.active_workspace_id.lock().unwrap();
-    // Return empty list initially until ledger entries are created
-    Ok(Vec::new())
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, workspace_id, source_doc_id, posted_date, description, amount_minor, currency, external_ref, matched_invoice_id, review_state
+             FROM transactions WHERE workspace_id = ?1 ORDER BY posted_date DESC;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(TransactionRecord {
+                id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                source_doc_id: row.get(2)?,
+                posted_date: row.get(3)?,
+                description: row.get(4)?,
+                amount_minor: row.get(5)?,
+                currency: row.get(6)?,
+                external_ref: row.get(7)?,
+                matched_invoice_id: row.get(8)?,
+                review_state: row.get(9)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn ingest_file(state: State<AppState>, file_path: String) -> Result<IngestResult, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is currently unlocked.")?
+        .clone();
+    drop(ws_guard);
+
+    let key_guard = state.active_master_key.lock().unwrap();
+    let master_key = key_guard
+        .as_ref()
+        .ok_or("Workspace master key is locked.")?
+        .clone();
+    drop(key_guard);
+
+    let mut db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_mut().ok_or("Database uninitialized.")?;
+
+    let blob_guard = state.blob_store.lock().unwrap();
+    let blob_store = blob_guard.as_ref().ok_or("BlobStore uninitialized.")?;
+
+    let ocr_guard = state.ocr_client.lock().unwrap();
+    let ocr_client = ocr_guard.as_ref().ok_or("OcrClient uninitialized.")?;
+
+    DocumentOrchestrator::ingest_file(
+        db,
+        blob_store,
+        ocr_client,
+        &master_key,
+        &ws_id,
+        Path::new(&file_path),
+        "USD",
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_document_details(
+    state: State<AppState>,
+    document_id: String,
+) -> Result<DocumentDetails, String> {
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    // 1. Fetch document record
+    let document: DocumentRecord = db
+        .conn_ref()
+        .query_row(
+            "SELECT id, workspace_id, file_name, file_size_bytes, sha256, doc_type, page_count, status, imported_at
+             FROM documents WHERE id = ?1 LIMIT 1;",
+            params![document_id],
+            |row| {
+                Ok(DocumentRecord {
+                    id: row.get(0)?,
+                    workspace_id: row.get(1)?,
+                    file_name: row.get(2)?,
+                    file_size_bytes: row.get(3)?,
+                    sha256: row.get(4)?,
+                    doc_type: row.get(5)?,
+                    page_count: row.get(6)?,
+                    status: row.get(7)?,
+                    imported_at: row.get(8)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Document not found: {}", e))?;
+
+    // 2. Fetch document fields
+    let mut field_stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT field_key, original_text, normalized_value, confidence, page_num, bounding_box_json
+             FROM document_fields WHERE document_id = ?1 ORDER BY page_num ASC;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let field_rows = field_stmt
+        .query_map(params![document_id], |row| {
+            Ok(NormalizedField {
+                field_key: row.get(0)?,
+                original_text: row.get(1)?,
+                normalized_value: row.get(2)?,
+                confidence: row.get(3)?,
+                page_num: row.get(4)?,
+                bounding_box_json: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut fields = Vec::new();
+    for f in field_rows {
+        fields.push(f.map_err(|e| e.to_string())?);
+    }
+
+    // 3. Fetch invoice and line items
+    let mut invoice_total_minor = None;
+    let mut line_items = Vec::new();
+
+    let inv_opt: Result<(String, i64), _> = db.conn_ref().query_row(
+        "SELECT id, total_minor FROM invoices WHERE document_id = ?1 LIMIT 1;",
+        params![document_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    );
+
+    if let Ok((inv_id, total)) = inv_opt {
+        invoice_total_minor = Some(total);
+
+        let mut item_stmt = db
+            .conn_ref()
+            .prepare("SELECT description, amount_minor FROM line_items WHERE invoice_id = ?1;")
+            .map_err(|e| e.to_string())?;
+
+        let item_rows = item_stmt
+            .query_map(params![inv_id], |row| {
+                Ok(NormalizedLineItem {
+                    description: row.get(0)?,
+                    amount_minor: row.get(1)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+
+        for it in item_rows {
+            line_items.push(it.map_err(|e| e.to_string())?);
+        }
+    }
+
+    Ok(DocumentDetails {
+        document,
+        fields,
+        line_items,
+        invoice_total_minor,
+    })
 }

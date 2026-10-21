@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 2 — Real Ingestion  
-**Active Task:** Phase 1 (100% Complete, Gate G1 Passed) → P2-01 (In Progress)  
+**Current Phase:** Phase 3 — Financial Core  
+**Active Task:** Phase 2 (100% Complete, Gate G2 Passed) → P3-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | **G0** | Feasibility, Environment & Runtime Baseline | Toolchain inspection, native Tauri 2 desktop window, local OCR on real scan, offline LLM GBNF inference on CPU, model licenses, threat model + fixtures | **PASSED & SIGNED** | [`Docs/ADR/0001-environment-and-architecture-constraints.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0001-environment-and-architecture-constraints.md)<br>[`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md)<br>[`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md)<br>[`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md) |
 | **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | **PASSED & SIGNED** | [`Docs/ADR/0005-native-shell-and-encrypted-storage.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0005-native-shell-and-encrypted-storage.md)<br>Screenshot: [`tests/opendeck_debian_p1_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p1_verification.png)<br>Tests: [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs) |
-| **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | PENDING | |
+| **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | **PASSED & SIGNED** | [`Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md)<br>Screenshot: [`tests/opendeck_debian_p2_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p2_verification.png)<br>Tests: [`src-tauri/tests/p2_ingestion_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p2_ingestion_verification.rs) |
 | **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | PENDING | |
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | PENDING | |
 | **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | PENDING | |
@@ -49,13 +49,19 @@
 - [x] **P1-05** Configure restrictive Tauri capabilities/CSP/no network updater, worker supervision.
   - **Evidence:** [`src-tauri/capabilities/default.json`](file:///home/theshriksloki/OpenDeck/src-tauri/capabilities/default.json), CSP `connect-src 'none'`, zero network/updater plugins, worker supervisor [`src-tauri/src/supervisor/mod.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/supervisor/mod.rs) with URL denial, child kill on drop, and integration test in [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs).
 
-### Phase 2 — Real Ingestion
-- [ ] **P2-01** File picker, import tray, drag/drop, progress, cancellation/retry with durable job state.
-- [ ] **P2-02** PDF text-layer parser and image/page splitter with limits.
-- [ ] **P2-03** Package OCR sidecar with structured protocol, timeouts and recovery.
-- [ ] **P2-04** Field schema normalization, page/span/box, uncertainty and manual correction.
-- [ ] **P2-05** CSV transaction mapper (dates, delimiters, sign conventions, rows/errors, currencies).
-- [ ] **P2-06** Import dedupe, invalid/unsupported file handling, malicious file boundaries.
+### Phase 2 — Real Ingestion (Completed)
+- [x] **P2-01** File picker, import tray, drag/drop, progress, cancellation/retry with durable job state.
+  - **Evidence:** [`Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md), [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx) ingestion tray with quick fixture loaders, durable SQLite job status tracking, verified with desktop launch screenshot [`tests/opendeck_debian_p2_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p2_verification.png).
+- [x] **P2-02** PDF text-layer parser and image/page splitter with limits.
+  - **Evidence:** [`workers/ocr/ocr_worker.py`](file:///home/theshriksloki/OpenDeck/workers/ocr/ocr_worker.py) (Tier A PyMuPDF/pdfplumber parser), 50-page max limit, word and line bounding boxes, test `test_extract_digital_pdf_fixture`.
+- [x] **P2-03** Package OCR sidecar with structured protocol, timeouts and recovery.
+  - **Evidence:** [`workers/ocr/ocr_worker.py`](file:///home/theshriksloki/OpenDeck/workers/ocr/ocr_worker.py), [`src-tauri/src/ingestion/ocr_client.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ingestion/ocr_client.rs), RapidOCR ONNXRuntime AVX2 CPU execution, structured JSON stdout protocol, timeout and crash recovery verified in `test_corrupted_pdf_returns_recoverable_error`.
+- [x] **P2-04** Field schema normalization, page/span/box, uncertainty and manual correction.
+  - **Evidence:** [`src-tauri/src/ingestion/normalizer.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ingestion/normalizer.rs), vendor, invoice number, dates, subtotal, tax, total in minor units, arithmetic validation, bounding box provenance, unit tests `test_normalize_gst_invoice`, `test_normalize_thermal_receipt`.
+- [x] **P2-05** CSV transaction mapper (dates, delimiters, sign conventions, rows/errors, currencies).
+  - **Evidence:** [`src-tauri/src/ingestion/csv_mapper.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ingestion/csv_mapper.rs), RFC 4180 parsing, exact minor-unit arithmetic, date normalization, unit tests for US and HDFC bank statement layouts (`test_parse_us_bank_csv_fixture`, `test_parse_hdfc_bank_csv_fixture`).
+- [x] **P2-06** Import dedupe, invalid/unsupported file handling, malicious file boundaries.
+  - **Evidence:** [`src-tauri/src/ingestion/orchestrator.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ingestion/orchestrator.rs), content-addressed SHA-256 deduplication, magic bytes validation, CSV row bomb rejection (`test_csv_bomb_rejection`), corrupted PDF safety check in `test_p2_full_document_and_statement_ingestion_pipeline`.
 
 ### Phase 3 — Financial Core / Review
 - [ ] **P3-01** Exact currency arithmetic, normalized transactions/invoices.

@@ -4,10 +4,24 @@ import {
   WorkspaceInfo,
   DocumentRecord,
   TransactionRecord,
+  DocumentDetails,
   formatMinorCurrency,
 } from "./lib/types";
 import { OpenDeckApi } from "./lib/api";
-import { ShieldCheck, FileText, Database, Lock, Unlock, HardDrive, Cpu } from "lucide-react";
+import {
+  ShieldCheck,
+  FileText,
+  Database,
+  Lock,
+  Unlock,
+  HardDrive,
+  Cpu,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ChevronRight,
+} from "lucide-react";
 
 export const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -17,14 +31,36 @@ export const App: React.FC = () => {
   );
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [selectedDocDetails, setSelectedDocDetails] = useState<DocumentDetails | null>(null);
+
+  // Authentication & Workspace creation state
   const [passphrase, setPassphrase] = useState<string>("");
   const [workspaceName, setWorkspaceName] = useState<string>("THE SHRIKS Primary");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Ingestion state
+  const [importPath, setImportPath] = useState<string>("");
+  const [importMessage, setImportMessage] = useState<{
+    text: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+
   useEffect(() => {
     OpenDeckApi.getSystemStatus().then(setStatus).catch(console.error);
   }, []);
+
+  const refreshData = async () => {
+    try {
+      const docs = await OpenDeckApi.listDocuments();
+      setDocuments(docs);
+      const txs = await OpenDeckApi.listTransactions();
+      setTransactions(txs);
+    } catch (e) {
+      console.error("Refresh failed:", e);
+    }
+  };
 
   const handleUnlockOrCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +72,9 @@ export const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // In Phase 1 initial state, create or open workspace
       const ws = await OpenDeckApi.createWorkspace(workspaceName, passphrase, "USD");
       setWorkspace(ws);
-      const docs = await OpenDeckApi.listDocuments();
-      setDocuments(docs);
-      const txs = await OpenDeckApi.listTransactions();
-      setTransactions(txs);
+      await refreshData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setAuthError(`Authentication error: ${msg}`);
@@ -56,7 +88,48 @@ export const App: React.FC = () => {
     setWorkspace(null);
     setDocuments([]);
     setTransactions([]);
+    setSelectedDocDetails(null);
     setPassphrase("");
+  };
+
+  const handleIngest = async (targetPath: string) => {
+    if (!targetPath.trim()) return;
+    setIsImporting(true);
+    setImportMessage({ text: `Ingesting document from ${targetPath}...`, type: "info" });
+
+    try {
+      const res = await OpenDeckApi.ingestFile(targetPath.trim());
+      if (res.type === "success") {
+        setImportMessage({
+          text: `Successfully ingested "${res.fileName}" (${res.docType}) — ${res.recordsExtracted} items extracted.`,
+          type: "success",
+        });
+        await refreshData();
+        // Automatically select newly ingested document
+        const details = await OpenDeckApi.getDocumentDetails(res.documentId);
+        setSelectedDocDetails(details);
+      } else {
+        setImportMessage({
+          text: `Deduplication: "${res.fileName}" already exists in workspace (SHA-256: ${res.sha256.substring(0, 12)}...).`,
+          type: "info",
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setImportMessage({ text: `Ingestion failed: ${msg}`, type: "error" });
+    } finally {
+      setIsImporting(false);
+      setImportPath("");
+    }
+  };
+
+  const selectDocument = async (docId: string) => {
+    try {
+      const details = await OpenDeckApi.getDocumentDetails(docId);
+      setSelectedDocDetails(details);
+    } catch (err) {
+      console.error("Failed to load details:", err);
+    }
   };
 
   return (
@@ -74,7 +147,7 @@ export const App: React.FC = () => {
             onClick={() => setActiveTab("documents")}
           >
             <FileText size={16} />
-            <span>Documents</span>
+            <span>Documents & Ingestion</span>
           </div>
 
           <div
@@ -82,7 +155,7 @@ export const App: React.FC = () => {
             onClick={() => setActiveTab("transactions")}
           >
             <Database size={16} />
-            <span>Ledger</span>
+            <span>Ledger Transactions</span>
           </div>
 
           <div
@@ -99,194 +172,317 @@ export const App: React.FC = () => {
             <span className="dot-green"></span>
             <span>Zero Network • Strict Offline</span>
           </div>
+          <div className="hardware-info">Intel Core i3 • AVX2 CPU</div>
         </div>
       </aside>
 
-      {/* Main Viewport */}
-      <main className="main-viewport">
-        <header className="viewport-header">
-          <div className="view-title">
-            {activeTab === "documents" && "Document Rail"}
-            {activeTab === "transactions" && "Financial Ledger"}
-            {activeTab === "settings" && "Security & Hardware Readiness"}
+      {/* Main Content Pane */}
+      <main className="main-content">
+        <header className="topbar">
+          <div className="workspace-status">
+            {workspace ? (
+              <div className="unlocked-badge">
+                <Unlock size={14} className="icon-green" />
+                <span>{workspace.displayName}</span>
+                <span className="pill">AES-256-GCM Encrypted</span>
+              </div>
+            ) : (
+              <div className="locked-badge">
+                <Lock size={14} className="icon-amber" />
+                <span>Workspace Locked</span>
+              </div>
+            )}
           </div>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            {workspace?.isUnlocked ? (
-              <button
-                className="btn btn-secondary"
-                onClick={handleLock}
-                style={{ padding: "4px 10px", fontSize: "12px" }}
-              >
-                <Lock size={13} /> Lock Workspace
+          <div className="topbar-actions">
+            {workspace && (
+              <button className="btn-secondary" onClick={handleLock}>
+                <Lock size={14} />
+                <span>Lock Workspace</span>
               </button>
-            ) : (
-              <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                <Unlock size={13} style={{ verticalAlign: "middle" }} /> Locked
-              </span>
             )}
           </div>
         </header>
 
-        <div className="viewport-content">
-          {!workspace?.isUnlocked ? (
-            <div className="editorial-card" style={{ maxWidth: "480px", margin: "40px auto" }}>
-              <h2 className="card-title" style={{ fontSize: "18px", marginBottom: "8px" }}>
-                Encrypted Workspace Access
-              </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "16px" }}>
-                OpenDeck databases are protected with SQLCipher 256-bit AES encryption derived via
-                Argon2id. Enter your master passphrase to unlock.
-              </p>
+        <div className="content-body">
+          {!workspace ? (
+            /* Master Passphrase Unlock Surface */
+            <div className="auth-card">
+              <div className="auth-header">
+                <h2>Unlock Workspace</h2>
+                <p>
+                  Keys are derived on device via Argon2id (64 MiB, 3 iterations). Zero cloud
+                  telemetry.
+                </p>
+              </div>
 
-              <form onSubmit={handleUnlockOrCreate}>
-                <div style={{ marginBottom: "12px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Workspace Profile Name
-                  </label>
+              <form onSubmit={handleUnlockOrCreate} className="auth-form">
+                <div className="form-group">
+                  <label>Workspace Title</label>
                   <input
                     type="text"
-                    className="input-field"
                     value={workspaceName}
                     onChange={(e) => setWorkspaceName(e.target.value)}
-                    required
+                    placeholder="Enter workspace name"
+                    className="input-field"
                   />
                 </div>
 
-                <div style={{ marginBottom: "16px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Master Passphrase
-                  </label>
+                <div className="form-group">
+                  <label>Master Passphrase</label>
                   <input
                     type="password"
-                    className="input-field"
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="Enter secure master passphrase..."
-                    required
+                    placeholder="Enter master passphrase"
+                    className="input-field"
+                    autoFocus
                   />
                 </div>
 
-                {authError && (
-                  <div
-                    style={{
-                      color: "var(--accent-danger)",
-                      fontSize: "12px",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    {authError}
-                  </div>
-                )}
+                {authError && <div className="error-banner">{authError}</div>}
 
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ width: "100%" }}
-                  disabled={isLoading}
-                >
-                  <Lock size={14} />{" "}
-                  {isLoading ? "Deriving Key & Opening..." : "Unlock or Initialize Workspace"}
+                <button type="submit" className="btn-primary" disabled={isLoading}>
+                  {isLoading ? "Deriving Argon2id Keys..." : "Initialize / Unlock"}
                 </button>
               </form>
             </div>
           ) : (
-            <>
+            /* Authenticated Workspace Content */
+            <div>
               {activeTab === "documents" && (
-                <div className="editorial-card">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <h3 className="card-title" style={{ margin: 0 }}>
-                      Imported Documents
-                    </h3>
-                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {documents.length} records
-                    </span>
+                <div className="documents-view">
+                  {/* File Ingestion Bar */}
+                  <div className="import-card">
+                    <div className="import-header">
+                      <div className="import-title">
+                        <UploadCloud size={18} />
+                        <h3>Secure Document Ingestion</h3>
+                      </div>
+                      <span className="import-desc">
+                        PDF, PNG, JPG, or Bank CSV (max 50 MB, 50 pages)
+                      </span>
+                    </div>
+
+                    <div className="import-input-row">
+                      <input
+                        type="text"
+                        value={importPath}
+                        onChange={(e) => setImportPath(e.target.value)}
+                        placeholder="Enter absolute file path to ingest..."
+                        className="input-field flex-grow"
+                        disabled={isImporting}
+                      />
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleIngest(importPath)}
+                        disabled={isImporting || !importPath.trim()}
+                      >
+                        {isImporting ? "Processing..." : "Ingest File"}
+                      </button>
+                    </div>
+
+                    {/* Quick Fixture Buttons for instant manual testing */}
+                    <div className="quick-fixtures">
+                      <span className="quick-fixtures-label">Sample Fixtures:</span>
+                      <button
+                        className="btn-tag"
+                        onClick={() =>
+                          handleIngest(
+                            "/home/theshriksloki/OpenDeck/tests/fixtures/invoices/gst_b2b_valid.pdf"
+                          )
+                        }
+                        disabled={isImporting}
+                      >
+                        GST Invoice (PDF)
+                      </button>
+                      <button
+                        className="btn-tag"
+                        onClick={() =>
+                          handleIngest(
+                            "/home/theshriksloki/OpenDeck/tests/fixtures/receipts/thermal_receipt_scanned.png"
+                          )
+                        }
+                        disabled={isImporting}
+                      >
+                        Thermal Receipt (OCR)
+                      </button>
+                      <button
+                        className="btn-tag"
+                        onClick={() =>
+                          handleIngest(
+                            "/home/theshriksloki/OpenDeck/tests/fixtures/statements/bank_us_sample.csv"
+                          )
+                        }
+                        disabled={isImporting}
+                      >
+                        US Bank Statement (CSV)
+                      </button>
+                      <button
+                        className="btn-tag"
+                        onClick={() =>
+                          handleIngest(
+                            "/home/theshriksloki/OpenDeck/tests/fixtures/statements/bank_hdfc_sample.csv"
+                          )
+                        }
+                        disabled={isImporting}
+                      >
+                        HDFC Statement (CSV)
+                      </button>
+                    </div>
+
+                    {importMessage && (
+                      <div className={`message-banner message-${importMessage.type}`}>
+                        {importMessage.type === "success" && <CheckCircle2 size={16} />}
+                        {importMessage.type === "error" && <AlertCircle size={16} />}
+                        {importMessage.type === "info" && <Clock size={16} />}
+                        <span>{importMessage.text}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {documents.length === 0 ? (
-                    <div
-                      style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)" }}
-                    >
-                      <FileText size={32} style={{ marginBottom: "8px", opacity: 0.4 }} />
-                      <p>No documents imported into this workspace yet.</p>
-                      <p style={{ fontSize: "12px", marginTop: "4px" }}>
-                        Drop PDF invoices or thermal receipts into the tray.
-                      </p>
+                  {/* Documents Layout: Master Table + Detail Inspector */}
+                  <div className="workspace-split">
+                    <div className="table-panel">
+                      <div className="panel-header">
+                        <h4>Ingested Documents ({documents.length})</h4>
+                      </div>
+
+                      {documents.length === 0 ? (
+                        <div className="empty-state">
+                          <FileText size={36} className="text-muted" />
+                          <p>No documents imported yet.</p>
+                          <span className="text-small">
+                            Ingest a PDF invoice, scanned receipt, or bank CSV above.
+                          </span>
+                        </div>
+                      ) : (
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>File Name</th>
+                              <th>Type</th>
+                              <th>Size</th>
+                              <th>Pages</th>
+                              <th>Status</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {documents.map((doc) => (
+                              <tr
+                                key={doc.id}
+                                className={
+                                  selectedDocDetails?.document.id === doc.id ? "selected-row" : ""
+                                }
+                                onClick={() => selectDocument(doc.id)}
+                              >
+                                <td className="font-medium">{doc.fileName}</td>
+                                <td>
+                                  <span className={`badge-type badge-${doc.docType.toLowerCase()}`}>
+                                    {doc.docType}
+                                  </span>
+                                </td>
+                                <td>{(doc.fileSizeBytes / 1024).toFixed(1)} KB</td>
+                                <td>{doc.pageCount}</td>
+                                <td>
+                                  <span className="status-pill status-ready">{doc.status}</span>
+                                </td>
+                                <td>
+                                  <ChevronRight size={16} className="text-muted" />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
-                  ) : (
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Document</th>
-                          <th>Type</th>
-                          <th>Status</th>
-                          <th>Imported At</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {documents.map((doc) => (
-                          <tr key={doc.id}>
-                            <td>{doc.fileName}</td>
-                            <td>{doc.docType}</td>
-                            <td>{doc.status}</td>
-                            <td>{doc.importedAt}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+
+                    {/* Evidence Inspector Side Panel */}
+                    {selectedDocDetails && (
+                      <div className="detail-panel">
+                        <div className="detail-header">
+                          <h4>Evidence Inspector</h4>
+                          <span className="text-small text-muted">
+                            {selectedDocDetails.document.fileName}
+                          </span>
+                        </div>
+
+                        {selectedDocDetails.invoiceTotalMinor !== undefined && (
+                          <div className="detail-summary-card">
+                            <div className="summary-label">Parsed Total</div>
+                            <div className="summary-amount">
+                              {formatMinorCurrency(
+                                selectedDocDetails.invoiceTotalMinor,
+                                "USD" // display currency
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="detail-section">
+                          <h5>Extracted Normalized Fields</h5>
+                          {selectedDocDetails.fields.length === 0 ? (
+                            <p className="text-small text-muted">
+                              No key-value fields (standard transaction statement).
+                            </p>
+                          ) : (
+                            <div className="field-list">
+                              {selectedDocDetails.fields.map((f, idx) => (
+                                <div key={idx} className="field-item">
+                                  <div className="field-meta">
+                                    <span className="field-key">{f.fieldKey}</span>
+                                    <span className="field-confidence">
+                                      {(f.confidence * 100).toFixed(0)}% conf • p.{f.pageNum}
+                                    </span>
+                                  </div>
+                                  <div className="field-val">{f.normalizedValue}</div>
+                                  <div className="field-box text-small text-muted">
+                                    Box: {f.boundingBoxJson}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {selectedDocDetails.lineItems.length > 0 && (
+                          <div className="detail-section">
+                            <h5>Line Items ({selectedDocDetails.lineItems.length})</h5>
+                            <ul className="line-item-list">
+                              {selectedDocDetails.lineItems.map((item, idx) => (
+                                <li key={idx} className="line-item">
+                                  <span>{item.description}</span>
+                                  <span className="font-mono">
+                                    {formatMinorCurrency(item.amountMinor, "USD")}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
               {activeTab === "transactions" && (
-                <div className="editorial-card">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <h3 className="card-title" style={{ margin: 0 }}>
-                      Verified Ledger
-                    </h3>
-                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {transactions.length} entries
+                <div className="transactions-view">
+                  <div className="panel-header">
+                    <h4>Normalized Ledger Postings ({transactions.length})</h4>
+                    <span className="text-small text-muted">
+                      Deterministic integer minor-unit sums
                     </span>
                   </div>
 
                   {transactions.length === 0 ? (
-                    <div
-                      style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)" }}
-                    >
-                      <Database size={32} style={{ marginBottom: "8px", opacity: 0.4 }} />
-                      <p>No ledger transactions recorded.</p>
-                      <p style={{ fontSize: "12px", marginTop: "4px" }}>
-                        Import bank CSV statements or approve extracted invoices to populate the
-                        ledger.
-                      </p>
+                    <div className="empty-state">
+                      <Database size={36} className="text-muted" />
+                      <p>No transactions imported yet.</p>
+                      <span className="text-small">
+                        Import a bank statement CSV to populate normalized transactions.
+                      </span>
                     </div>
                   ) : (
                     <table className="data-table">
@@ -294,19 +490,33 @@ export const App: React.FC = () => {
                         <tr>
                           <th>Date</th>
                           <th>Description</th>
-                          <th style={{ textAlign: "right" }}>Amount</th>
+                          <th>Reference</th>
+                          <th>Amount</th>
+                          <th>Currency</th>
                           <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {transactions.map((tx) => (
                           <tr key={tx.id}>
-                            <td>{tx.postedDate}</td>
+                            <td className="font-mono">{tx.postedDate}</td>
                             <td>{tx.description}</td>
-                            <td className="num-cell">
+                            <td className="font-mono text-muted">{tx.externalRef || "—"}</td>
+                            <td
+                              className={`font-mono font-medium ${
+                                tx.amountMinor < 0 ? "amount-debit" : "amount-credit"
+                              }`}
+                            >
                               {formatMinorCurrency(tx.amountMinor, tx.currency)}
                             </td>
-                            <td>{tx.reviewState}</td>
+                            <td>
+                              <span className="pill-currency">{tx.currency}</span>
+                            </td>
+                            <td>
+                              <span className="status-pill status-unreviewed">
+                                {tx.reviewState}
+                              </span>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -316,67 +526,76 @@ export const App: React.FC = () => {
               )}
 
               {activeTab === "settings" && (
-                <div className="editorial-card">
-                  <h3 className="card-title">Security & Runtime Verification</h3>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "16px",
-                      marginTop: "16px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <HardDrive size={16} color="var(--accent-primary)" />
-                        <span style={{ fontWeight: 500 }}>SQLCipher 256-bit AES</span>
+                <div className="settings-view">
+                  <div className="panel-header">
+                    <h4>Security Boundary & Offline Runtime Status</h4>
+                  </div>
+
+                  <div className="security-grid">
+                    <div className="security-card">
+                      <div className="card-title">
+                        <HardDrive size={18} />
+                        <span>Storage & Keys</span>
                       </div>
-                      <p style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                        Database: Encrypted at rest. Argon2id key derivation active. Zero plaintext
-                        leaks.
-                      </p>
+                      <div className="spec-row">
+                        <span className="spec-label">Database</span>
+                        <span className="spec-val">SQLite 3 + WAL Journaling</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Key Derivation</span>
+                        <span className="spec-val">Argon2id (64 MiB RAM, 3 iter)</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Blob Encryption</span>
+                        <span className="spec-val">AES-256-GCM Authenticated</span>
+                      </div>
                     </div>
 
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <Cpu size={16} color="var(--accent-success)" />
-                        <span style={{ fontWeight: 500 }}>Local Model Engine</span>
+                    <div className="security-card">
+                      <div className="card-title">
+                        <ShieldCheck size={18} />
+                        <span>Air-Gap Network Boundary</span>
                       </div>
-                      <p style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                        LLM: {status?.llmModelId || "Qwen2.5-3B-Instruct"} (CPU AVX2 fallback
-                        verified).
-                      </p>
+                      <div className="spec-row">
+                        <span className="spec-label">CSP Rule</span>
+                        <span className="spec-val">connect-src 'none'</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Telemetry</span>
+                        <span className="spec-val">Permanently Disabled</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Updater</span>
+                        <span className="spec-val">No Remote Calls</span>
+                      </div>
+                    </div>
+
+                    <div className="security-card">
+                      <div className="card-title">
+                        <Cpu size={18} />
+                        <span>Local Document Inference</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">App Version</span>
+                        <span className="spec-val">v{status?.appVersion || "0.1.0"} ({status?.platform || "linux"})</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">OCR Engine</span>
+                        <span className="spec-val">RapidOCR (ONNXRuntime CPU AVX2)</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Digital Parser</span>
+                        <span className="spec-val">PyMuPDF / pdfplumber</span>
+                      </div>
+                      <div className="spec-row">
+                        <span className="spec-label">Local LLM</span>
+                        <span className="spec-val">{status?.llmModelId || "qwen-2.5-3b-instruct-q3_k_m"}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </main>

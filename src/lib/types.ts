@@ -8,7 +8,9 @@ export type CurrencyCode = "USD" | "EUR" | "GBP" | "INR" | "CAD" | "AUD" | "JPY"
 export type IngestionStatus =
   | "SELECTED"
   | "IMPORTING"
+  | "PROCESSING"
   | "STORED"
+  | "READY"
   | "EXTRACTING"
   | "EXTRACTED"
   | "NEEDS_REVIEW"
@@ -16,7 +18,7 @@ export type IngestionStatus =
   | "FAILED"
   | "CANCELLED";
 
-export type DocumentType = "INVOICE" | "RECEIPT" | "BANK_STATEMENT" | "TAX_FORM" | "UNKNOWN";
+export type DocumentType = "PDF" | "PNG" | "JPEG" | "CSV" | "INVOICE" | "RECEIPT" | "UNKNOWN";
 
 export type ReviewState = "UNREVIEWED" | "APPROVED" | "REJECTED" | "CORRECTED";
 
@@ -42,27 +44,43 @@ export interface DocumentRecord {
 }
 
 export interface DocumentLineItem {
-  id: string;
   description: string;
   amountMinor: number; // Exact minor unit (cents)
-  quantity?: number;
-  unitPriceMinor?: number;
 }
 
-export interface ExtractedInvoice {
-  id: string;
-  documentId: string;
-  vendorName: string;
-  invoiceNumber?: string;
-  invoiceDate?: string;
-  dueDate?: string;
-  currency: CurrencyCode;
-  totalMinor: number; // Cents
-  taxMinor: number; // Cents
-  lineItems: DocumentLineItem[];
+export interface NormalizedField {
+  fieldKey: string;
+  originalText: string;
+  normalizedValue: string;
   confidence: number;
-  reviewState: ReviewState;
+  pageNum: number;
+  boundingBoxJson: string;
 }
+
+export interface DocumentDetails {
+  document: DocumentRecord;
+  fields: NormalizedField[];
+  lineItems: DocumentLineItem[];
+  invoiceTotalMinor?: number;
+}
+
+export interface IngestResultSuccess {
+  type: "success";
+  documentId: string;
+  fileName: string;
+  docType: string;
+  pageCount: number;
+  recordsExtracted: number;
+}
+
+export interface IngestResultDuplicate {
+  type: "duplicate";
+  existingDocumentId: string;
+  fileName: string;
+  sha256: string;
+}
+
+export type IngestResult = IngestResultSuccess | IngestResultDuplicate;
 
 export interface TransactionRecord {
   id: string;
@@ -90,7 +108,7 @@ export interface SystemStatus {
 
 /**
  * Format integer minor units (cents) into human-readable currency.
- * NEVER uses float division without exact decimal string formatting.
+ * NEVER uses binary float division without exact decimal string formatting.
  */
 export function formatMinorCurrency(minorUnits: number, currency: CurrencyCode): string {
   const isNegative = minorUnits < 0;
