@@ -1,0 +1,17 @@
+root ::= "{" space vendor-kv "," space date-kv "," space receipt-id-kv "," space total-cents-kv "," space tax-cents-kv "," space payment-method-kv "," space line-items-kv space "}"
+vendor-kv ::= "\"vendor\"" space ":" space string
+date-kv ::= "\"date\"" space ":" space string
+receipt-id-kv ::= "\"receipt_id\"" space ":" space string
+total-cents-kv ::= "\"total_cents\"" space ":" space integer
+tax-cents-kv ::= "\"tax_cents\"" space ":" space integer
+payment-method-kv ::= "\"payment_method\"" space ":" space string
+line-items-kv ::= "\"line_items\"" space ":" space line-items
+line-items ::= "[" space (line-items-item ("," space line-items-item)*)? space "]"
+line-items-item ::= "{" space line-items-item-description-kv "," space line-items-item-amount-cents-kv space "}"
+line-items-item-description-kv ::= "\"description\"" space ":" space string
+line-items-item-amount-cents-kv ::= "\"amount_cents\"" space ":" space integer
+char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})
+string ::= "\"" char* "\""
+integer ::= ("-"? integral-part)
+integral-part ::= [0] | [1-9] [0-9]{0,15}
+space ::= | " " | "\n"{1,2} [ \t]{0,20}

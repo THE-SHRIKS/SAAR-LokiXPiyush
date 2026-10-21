@@ -1,21 +1,41 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 0 — Discovery, feasibility, and baseline  
-**Active Task:** P0-01 (Completed) → P0-02 (In Progress)  
+**Current Phase:** Phase 1 — Native shell + secure workspace  
+**Active Task:** Phase 0 (100% Complete, Gate G0 Passed) → P1-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
 
-## 1. Task Ledger Status
+## 1. Gate Sign-Off Ledger
 
-### Phase 0 — Feasibility / Toolchain
+| Gate | Name | Required Proofs | Status | Evidence Link |
+|---|---|---|---|---|
+| **G0** | Feasibility, Environment & Runtime Baseline | Toolchain inspection, native Tauri 2 desktop window, local OCR on real scan, offline LLM GBNF inference on CPU, model licenses, threat model + fixtures | **PASSED & SIGNED** | [`Docs/ADR/0001-environment-and-architecture-constraints.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0001-environment-and-architecture-constraints.md)<br>[`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md)<br>[`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md)<br>[`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md) |
+| **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | PENDING | |
+| **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | PENDING | |
+| **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | PENDING | |
+| **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | PENDING | |
+| **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | PENDING | |
+| **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | PENDING | |
+| **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | PENDING | |
+
+---
+
+## 2. Task Ledger Status
+
+### Phase 0 — Feasibility / Toolchain (Completed)
 - [x] **P0-01** Inspect actual source repo, OS, CPU/GPU/RAM/disk and Windows target; record exact versions.
-  - **Evidence:** `Docs/ADR/0001-environment-and-architecture-constraints.md`. Verified Debian 13.7 (trixie), Intel i3-7020U (2 cores, 4 threads, AVX2), Intel HD 620 iGPU (no CUDA), 11 GiB RAM, ext4 rw on `/home/theshriksloki/OpenDeck`, Node v24.19.0, pnpm 11.25.0, Python 3.12.14.
-- [ ] **P0-02** Validate Tauri 2 minimal Debian desktop launch + build.
-- [ ] **P0-03** Validate candidate OCR on real eligible local PDFs/images; measure fields/latency/memory.
-- [ ] **P0-04** Validate Qwen3-4B GGUF + llama.cpp offline structured output and CPU fallback.
-- [ ] **P0-05** Validate model license/weights packaging and native Windows sidecar build approach.
-- [ ] **P0-06** Create threat model and specify test corpus with consent/anonymization.
+  - **Evidence:** [`Docs/ADR/0001-environment-and-architecture-constraints.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0001-environment-and-architecture-constraints.md). Debian 13.7 (trixie), Intel i3-7020U (2 cores, 4 threads, AVX2), Intel HD 620 iGPU (no CUDA), 11 GiB RAM, 376 GB free ext4.
+- [x] **P0-02** Validate Tauri 2 minimal Debian desktop launch + build.
+  - **Evidence:** Executable `/tmp/tauri_test/target/debug/tauri_test`, build log, screenshot [`tests/tauri_debian_verification.png`](file:///home/theshriksloki/OpenDeck/tests/tauri_debian_verification.png), [`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md). GTK 3 / WebKit2GTK 4.1.
+- [x] **P0-03** Validate candidate OCR on real eligible local PDFs/images; measure fields/latency/memory.
+  - **Evidence:** [`scripts/test_rapidocr.py`](file:///home/theshriksloki/OpenDeck/scripts/test_rapidocr.py) against [`tests/fixtures/receipts/thermal_receipt_scanned.png`](file:///home/theshriksloki/OpenDeck/tests/fixtures/receipts/thermal_receipt_scanned.png). 20/20 text lines recognized (>0.985 mean confidence), 5.26s inference, 181.4 MB peak RSS. [`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md).
+- [x] **P0-04** Validate Qwen3-4B GGUF + llama.cpp offline structured output and CPU fallback.
+  - **Evidence:** `bin/llama/llama-cli` (build `b1-a37cc46`, AVX2 CPU), model `Qwen2.5-3B-Instruct-Q3_K_M.gguf` (SHA-256 `8eff4e0eb51a8148abdaa9849f14f187e5ac6cd7d795610caf996a287277c59d`), test script [`scripts/test_llm_structured.py`](file:///home/theshriksloki/OpenDeck/scripts/test_llm_structured.py). JSON-schema validation passed, 3.6 tok/s CPU generation, integer arithmetic proof ($15.00 + $10.50 + $20.00 = $45.50 / 4550 cents, 0 variance). [`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md).
+- [x] **P0-05** Validate model license/weights packaging and native Windows sidecar build approach.
+  - **Evidence:** Model manifest [`models/manifests/model-manifest.json`](file:///home/theshriksloki/OpenDeck/models/manifests/model-manifest.json), third-party licenses [`models/manifests/LICENSES.md`](file:///home/theshriksloki/OpenDeck/models/manifests/LICENSES.md) (Apache-2.0, MIT), Windows sidecar strategy in [`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md).
+- [x] **P0-06** Create threat model and specify test corpus with consent/anonymization.
+  - **Evidence:** Threat model TM-01..TM-08 and 10 synthetic test fixtures registered in [`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md) and [`tests/fixtures/`](file:///home/theshriksloki/OpenDeck/tests/fixtures/). Commit `3b4749c`.
 
 ### Phase 1 — Native Shell / Storage
 - [ ] **P1-01** Scaffold React+TS+Tauri with typed commands, lint, format, tests, local assets only.

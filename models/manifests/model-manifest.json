@@ -1,0 +1,85 @@
+{
+  "$schema": "https://opendeck.local/schemas/model-manifest.v1.json",
+  "manifest_version": "1.0.0",
+  "models": {
+    "llm_primary": {
+      "model_id": "qwen-2.5-3b-instruct-q3_k_m",
+      "model_name": "Qwen2.5-3B-Instruct",
+      "format": "GGUF",
+      "quantization": "Q3_K_M",
+      "size_bytes": 1590475936,
+      "sha256": "8eff4e0eb51a8148abdaa9849f14f187e5ac6cd7d795610caf996a287277c59d",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF",
+      "runtime": "llama.cpp",
+      "runtime_min_version": "b3000",
+      "hardware_profile": {
+        "device": "CPU",
+        "instructions": ["AVX2", "FMA"],
+        "threads_recommended": 2,
+        "ram_budget_mb": 2200,
+        "context_window_tokens": 4096
+      }
+    },
+    "llm_secondary": {
+      "model_id": "qwen-2.5-3b-instruct-q4_k_m",
+      "model_name": "Qwen2.5-3B-Instruct",
+      "format": "GGUF",
+      "quantization": "Q4_K_M",
+      "size_bytes": 1929903264,
+      "sha256": "9c9f56a391a3abbd5b89d0245bf6106081bcc3173119d4229235dd9d23253f94",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF",
+      "runtime": "llama.cpp",
+      "runtime_min_version": "b3000",
+      "hardware_profile": {
+        "device": "CPU",
+        "instructions": ["AVX2", "FMA"],
+        "threads_recommended": 2,
+        "ram_budget_mb": 2600,
+        "context_window_tokens": 4096
+      }
+    },
+    "ocr_engine": {
+      "engine_id": "rapidocr-ppocrv4-onnx",
+      "engine_name": "RapidOCR PP-OCRv4",
+      "format": "ONNX",
+      "runtime": "onnxruntime",
+      "runtime_min_version": "1.20.0",
+      "license": "Apache-2.0",
+      "models": [
+        {
+          "role": "text_detection",
+          "name": "ch_PP-OCRv4_det_infer.onnx",
+          "license": "Apache-2.0"
+        },
+        {
+          "role": "angle_classifier",
+          "name": "ch_ppocr_mobile_v2.0_cls_infer.onnx",
+          "license": "Apache-2.0"
+        },
+        {
+          "role": "text_recognition",
+          "name": "en_PP-OCRv4_rec_infer.onnx",
+          "license": "Apache-2.0"
+        }
+      ],
+      "hardware_profile": {
+        "device": "CPU",
+        "instructions": ["AVX2"],
+        "threads_recommended": 2,
+        "ram_budget_mb": 250
+      }
+    }
+  },
+  "runtime_targets": {
+    "linux_x86_64": {
+      "llm_sidecar_binary": "bin/llama-cli-x86_64-unknown-linux-gnu",
+      "ocr_sidecar_runner": "python3 / internal onnxruntime worker"
+    },
+    "windows_x86_64": {
+      "llm_sidecar_binary": "bin/llama-cli-x86_64-pc-windows-msvc.exe",
+      "ocr_sidecar_runner": "ocr-worker.exe (standalone onnxruntime sidecar)"
+    }
+  }
+}
