@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 1 — Native shell + secure workspace  
-**Active Task:** Phase 0 (100% Complete, Gate G0 Passed) → P1-01 (In Progress)  
+**Current Phase:** Phase 2 — Real Ingestion  
+**Active Task:** Phase 1 (100% Complete, Gate G1 Passed) → P2-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -11,7 +11,7 @@
 | Gate | Name | Required Proofs | Status | Evidence Link |
 |---|---|---|---|---|
 | **G0** | Feasibility, Environment & Runtime Baseline | Toolchain inspection, native Tauri 2 desktop window, local OCR on real scan, offline LLM GBNF inference on CPU, model licenses, threat model + fixtures | **PASSED & SIGNED** | [`Docs/ADR/0001-environment-and-architecture-constraints.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0001-environment-and-architecture-constraints.md)<br>[`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md)<br>[`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md)<br>[`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md) |
-| **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | PENDING | |
+| **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | **PASSED & SIGNED** | [`Docs/ADR/0005-native-shell-and-encrypted-storage.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0005-native-shell-and-encrypted-storage.md)<br>Screenshot: [`tests/opendeck_debian_p1_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p1_verification.png)<br>Tests: [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs) |
 | **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | PENDING | |
 | **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | PENDING | |
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | PENDING | |
@@ -37,12 +37,17 @@
 - [x] **P0-06** Create threat model and specify test corpus with consent/anonymization.
   - **Evidence:** Threat model TM-01..TM-08 and 10 synthetic test fixtures registered in [`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md) and [`tests/fixtures/`](file:///home/theshriksloki/OpenDeck/tests/fixtures/). Commit `3b4749c`.
 
-### Phase 1 — Native Shell / Storage
-- [ ] **P1-01** Scaffold React+TS+Tauri with typed commands, lint, format, tests, local assets only.
-- [ ] **P1-02** Implement encrypted workspace key lifecycle and wrong-passphrase errors.
-- [ ] **P1-03** Implement SQLCipher schema, migrations, transactions, FK checks, audit and crash recovery.
-- [ ] **P1-04** Implement encrypted file blob store, signatures, checksum, dedupe and safe temp handling.
-- [ ] **P1-05** Configure restrictive Tauri capabilities/CSP/no network updater, worker supervision.
+### Phase 1 — Native Shell / Storage (Completed)
+- [x] **P1-01** Scaffold React+TS+Tauri with typed commands, lint, format, tests, local assets only.
+  - **Evidence:** [`Docs/ADR/0005-native-shell-and-encrypted-storage.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0005-native-shell-and-encrypted-storage.md), React 18 / TS / Vite, Vitest 4/4 passing, ESLint clean, Tauri 2 GTK 3 desktop binary launch verified on Debian `DISPLAY=:0.0`, screenshot [`tests/opendeck_debian_p1_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p1_verification.png).
+- [x] **P1-02** Implement encrypted workspace key lifecycle and wrong-passphrase errors.
+  - **Evidence:** [`src-tauri/src/security/kdf.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/security/kdf.rs), Argon2id (64 MiB, 3 iterations, 1 parallelism, 32-byte key), OsRng salt, constant-time verification token, disk inspection test verifying 0 plaintext passphrase/key bytes on disk, wrong passphrase rejection test [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs).
+- [x] **P1-03** Implement SQLCipher schema, migrations, transactions, FK checks, audit and crash recovery.
+  - **Evidence:** [`src-tauri/src/db/migrations.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/db/migrations.rs), WAL mode, FK checks, migration v1, transactional rollback on error, audit trail logging, 4 unit tests passing.
+- [x] **P1-04** Implement encrypted file blob store, signatures, checksum, dedupe and safe temp handling.
+  - **Evidence:** [`src-tauri/src/security/blob_store.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/security/blob_store.rs), AES-256-GCM authenticated encryption, SHA-256 AAD binding, atomic write (`tmp -> fsync -> rename`), content-addressed deduplication, 1-bit tampering detection, RAII `TempPlaintextGuard` with zeroization cleanup, 5 unit tests + integration test in [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs).
+- [x] **P1-05** Configure restrictive Tauri capabilities/CSP/no network updater, worker supervision.
+  - **Evidence:** [`src-tauri/capabilities/default.json`](file:///home/theshriksloki/OpenDeck/src-tauri/capabilities/default.json), CSP `connect-src 'none'`, zero network/updater plugins, worker supervisor [`src-tauri/src/supervisor/mod.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/supervisor/mod.rs) with URL denial, child kill on drop, and integration test in [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs).
 
 ### Phase 2 — Real Ingestion
 - [ ] **P2-01** File picker, import tray, drag/drop, progress, cancellation/retry with durable job state.

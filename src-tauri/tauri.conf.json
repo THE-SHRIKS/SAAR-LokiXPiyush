@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v2.12.5/crates/tauri-cli/schema.json",
+  "productName": "OpenDeck",
+  "version": "0.1.0",
+  "identifier": "com.theshriks.opendeck",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset:; font-src 'self'; connect-src 'none'"
+    },
+    "windows": [
+      {
+        "title": "OpenDeck — Financial Intelligence",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
