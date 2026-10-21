@@ -1,0 +1,28 @@
+# Build artifacts
+target/
+dist/
+build/
+node_modules/
+
+# Local tools & runtimes
+.bin/
+.cargo/
+.rustup/
+.venv/
+__pycache__/
+*.pyc
+
+# Local data & model weights
+*.gguf
+*.bin
+*.onnx
+*.safetensors
+*.db
+*.sqlite
+*.sqlite3
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
