@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod commands;
 pub mod db;
+pub mod export;
 pub mod finance;
 pub mod ingestion;
 pub mod security;
@@ -65,6 +66,10 @@ pub fn run() {
             commands::classify_transaction,
             commands::approve_category,
             commands::search_workspace,
+            commands::export_reconciliation_report,
+            commands::list_report_exports,
+            commands::create_encrypted_backup,
+            commands::restore_encrypted_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenDeck application");

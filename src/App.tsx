@@ -14,6 +14,7 @@ import {
   NormalizedField,
   DocumentPreview,
   AuditEventRecord,
+  ExportResult,
   formatMinorCurrency,
 } from "./lib/types";
 import { OpenDeckApi } from "./lib/api";
@@ -40,6 +41,9 @@ import {
   Search,
   Tag,
   Send,
+  Download,
+  Archive,
+  FolderDown,
 } from "lucide-react";
 
 export const App: React.FC = () => {
@@ -95,6 +99,20 @@ export const App: React.FC = () => {
   const [correctingTx, setCorrectingTx] = useState<TransactionRecord | null>(null);
   const [correctionInput, setCorrectionInput] = useState<string>("");
 
+  // Report Export state
+  const [reportExports, setReportExports] = useState<ExportResult[]>([]);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+
+  // Backup & Restore state
+  const [backupPassphrase, setBackupPassphrase] = useState<string>("");
+  const [isBackupLoading, setIsBackupLoading] = useState<boolean>(false);
+  const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [restoreArchivePath, setRestoreArchivePath] = useState<string>("");
+  const [restorePassphrase, setRestorePassphrase] = useState<string>("");
+  const [isRestoreLoading, setIsRestoreLoading] = useState<boolean>(false);
+  const [restoreFeedback, setRestoreFeedback] = useState<string | null>(null);
+
   // Authentication & Workspace creation state
   const [passphrase, setPassphrase] = useState<string>("");
   const [workspaceName, setWorkspaceName] = useState<string>("THE SHRIKS Primary");
@@ -127,8 +145,63 @@ export const App: React.FC = () => {
       setFinancialSummary(summary);
       const logs = await OpenDeckApi.listAuditLog();
       setAuditLogs(logs);
+      const exports = await OpenDeckApi.listReportExports();
+      setReportExports(exports);
     } catch (e) {
       console.error("Refresh failed:", e);
+    }
+  };
+
+  const handleExportReport = async (format: "pdf" | "csv") => {
+    setIsExporting(true);
+    setExportFeedback(null);
+    try {
+      const res = await OpenDeckApi.exportReconciliationReport(format);
+      setExportFeedback(`Export generated successfully: ${res.filePath} (${res.recordCount} records, Snapshot SHA-256: ${res.recordSnapshotHash.slice(0, 16)}...)`);
+      const exports = await OpenDeckApi.listReportExports();
+      setReportExports(exports);
+    } catch (err: any) {
+      setExportFeedback(`Export error: ${err?.message || err}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleCreateBackup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!backupPassphrase) {
+      setBackupFeedback("Backup passphrase cannot be empty.");
+      return;
+    }
+    setIsBackupLoading(true);
+    setBackupFeedback(null);
+    try {
+      const manifest = await OpenDeckApi.createEncryptedBackup(backupPassphrase);
+      setBackupFeedback(`Encrypted backup created successfully! Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}..., Size: ${manifest.totalRawBytes} bytes`);
+      setBackupPassphrase("");
+    } catch (err: any) {
+      setBackupFeedback(`Backup failed: ${err?.message || err}`);
+    } finally {
+      setIsBackupLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restoreArchivePath || !restorePassphrase) {
+      setRestoreFeedback("Archive path and passphrase are required.");
+      return;
+    }
+    setIsRestoreLoading(true);
+    setRestoreFeedback(null);
+    try {
+      const manifest = await OpenDeckApi.restoreEncryptedBackup(restoreArchivePath, restorePassphrase);
+      setRestoreFeedback(`Workspace restored successfully! App: ${manifest.appVersion}, Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}...`);
+      await refreshData();
+    } catch (err: any) {
+      setRestoreFeedback(`Restore failed: ${err?.message || err}`);
+    } finally {
+      setIsRestoreLoading(false);
     }
   };
 
@@ -1174,11 +1247,37 @@ export const App: React.FC = () => {
               {activeTab === "reports" && (
                 <div className="reports-view">
                   <div className="panel-header">
-                    <h4>Deterministic Financial Reports</h4>
+                    <h4>Deterministic Financial Reports & Source-Traceable Exports</h4>
                     <span className="text-small text-muted">
                       Exact minor-unit ledger aggregates (Zero floating-point rounding)
                     </span>
                   </div>
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 12, marginBottom: 16 }}>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleExportReport("pdf")}
+                      disabled={isExporting}
+                    >
+                      <Download size={14} />
+                      <span>{isExporting ? "Generating PDF..." : "Export Source-Traceable PDF"}</span>
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleExportReport("csv")}
+                      disabled={isExporting}
+                    >
+                      <FileText size={14} />
+                      <span>{isExporting ? "Generating CSV..." : "Export Reconciliation CSV"}</span>
+                    </button>
+                  </div>
+
+                  {exportFeedback && (
+                    <div className="alert-banner info" style={{ marginBottom: 16 }}>
+                      <CheckCircle2 size={16} />
+                      <span className="font-mono text-small">{exportFeedback}</span>
+                    </div>
+                  )}
 
                   {financialSummary && (
                     <div className="summary-cards">
@@ -1346,6 +1445,52 @@ export const App: React.FC = () => {
                                 }`}
                               >
                                 {formatMinorCurrency(m.netCashFlowMinor, "USD")}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="breakdown-section" style={{ marginTop: 24 }}>
+                    <h5>Historical Report Exports & Provenance Snapshots</h5>
+                    {reportExports.length === 0 ? (
+                      <p className="text-muted text-small">No reports exported yet.</p>
+                    ) : (
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Exported At</th>
+                            <th>Format</th>
+                            <th>File Location</th>
+                            <th>Size</th>
+                            <th>Snapshot SHA-256</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportExports.map((exp) => (
+                            <tr key={exp.exportId}>
+                              <td className="font-mono text-muted text-small">{exp.createdAt}</td>
+                              <td>
+                                <span className="badge-match badge-exact">{exp.exportFormat}</span>
+                              </td>
+                              <td
+                                className="font-mono text-small"
+                                style={{
+                                  maxWidth: 260,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {exp.filePath}
+                              </td>
+                              <td className="font-mono text-small">
+                                {(exp.fileSizeBytes / 1024).toFixed(1)} KB
+                              </td>
+                              <td className="font-mono text-small text-muted">
+                                {exp.recordSnapshotHash.slice(0, 16)}...
                               </td>
                             </tr>
                           ))}
@@ -1551,6 +1696,94 @@ export const App: React.FC = () => {
                       <div className="spec-row">
                         <span className="spec-label">Local LLM</span>
                         <span className="spec-val">{status?.llmModelId || "qwen-2.5-3b-instruct-q3_k_m"}</span>
+                      </div>
+                    </div>
+
+                    <div className="security-card" style={{ gridColumn: "1 / -1", marginTop: 12 }}>
+                      <div className="card-title">
+                        <Archive size={18} />
+                        <span>Encrypted Offline Backup & Disaster Recovery (.opendeck)</span>
+                      </div>
+                      <p className="text-small text-muted" style={{ marginBottom: 14 }}>
+                        Create an authenticated, tamper-evident AES-256-GCM archive containing the SQLite database and encrypted blob store. Protected by Argon2id memory-hard key derivation.
+                      </p>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                        {/* Create Backup */}
+                        <form onSubmit={handleCreateBackup} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <h6>Create New Encrypted Backup Archive</h6>
+                          <input
+                            type="password"
+                            className="input-text"
+                            placeholder="Enter backup passphrase..."
+                            value={backupPassphrase}
+                            onChange={(e) => setBackupPassphrase(e.target.value)}
+                            disabled={isBackupLoading}
+                          />
+                          <button
+                            type="submit"
+                            className="btn-primary"
+                            disabled={isBackupLoading || !backupPassphrase.trim()}
+                          >
+                            <Archive size={14} />
+                            <span>{isBackupLoading ? "Encrypting Archive..." : "Create Encrypted Backup"}</span>
+                          </button>
+                          {backupFeedback && (
+                            <span
+                              className="text-small font-mono"
+                              style={{
+                                color: backupFeedback.includes("failed") ? "#ef4444" : "#10b981",
+                                marginTop: 4,
+                              }}
+                            >
+                              {backupFeedback}
+                            </span>
+                          )}
+                        </form>
+
+                        {/* Restore Backup */}
+                        <form onSubmit={handleRestoreBackup} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <h6>Restore from Backup Archive</h6>
+                          <input
+                            type="text"
+                            className="input-text"
+                            placeholder="Absolute path to .opendeck file..."
+                            value={restoreArchivePath}
+                            onChange={(e) => setRestoreArchivePath(e.target.value)}
+                            disabled={isRestoreLoading}
+                          />
+                          <input
+                            type="password"
+                            className="input-text"
+                            placeholder="Passphrase used during backup..."
+                            value={restorePassphrase}
+                            onChange={(e) => setRestorePassphrase(e.target.value)}
+                            disabled={isRestoreLoading}
+                          />
+                          <button
+                            type="submit"
+                            className="btn-secondary"
+                            disabled={
+                              isRestoreLoading ||
+                              !restoreArchivePath.trim() ||
+                              !restorePassphrase.trim()
+                            }
+                          >
+                            <FolderDown size={14} />
+                            <span>{isRestoreLoading ? "Decrypting & Restoring..." : "Restore Workspace"}</span>
+                          </button>
+                          {restoreFeedback && (
+                            <span
+                              className="text-small font-mono"
+                              style={{
+                                color: restoreFeedback.includes("failed") ? "#ef4444" : "#10b981",
+                                marginTop: 4,
+                              }}
+                            >
+                              {restoreFeedback}
+                            </span>
+                          )}
+                        </form>
                       </div>
                     </div>
                   </div>

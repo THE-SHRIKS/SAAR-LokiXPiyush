@@ -929,3 +929,163 @@ pub fn search_workspace(
     crate::ai::SearchEngine::search(db.conn_ref(), &ws_id, &query, 20)
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn export_reconciliation_report(
+    state: State<AppState>,
+    format: String,
+    destination_path: Option<String>,
+) -> Result<crate::export::ExportResult, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let mut db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_mut().ok_or("Database uninitialized.")?;
+
+    let ext = match format.to_lowercase().as_str() {
+        "pdf" => "pdf",
+        "csv" => "csv",
+        other => return Err(format!("Unsupported format '{}', must be 'pdf' or 'csv'", other)),
+    };
+
+    let target_path = match destination_path {
+        Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
+        _ => {
+            let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
+                .map(|d| d.data_local_dir().to_path_buf())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+            data_dir.join("exports").join(format!("opendeck_reconciliation_{}.{}", timestamp, ext))
+        }
+    };
+
+    crate::export::ExportService::export_reconciliation(
+        db.connection_mut(),
+        &ws_id,
+        &format,
+        &target_path,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_report_exports(
+    state: State<AppState>,
+) -> Result<Vec<crate::export::ExportResult>, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db.conn_ref().prepare(
+        "SELECT id, file_path, export_format, record_snapshot_hash, created_at
+         FROM report_exports
+         WHERE workspace_id = ?1
+         ORDER BY created_at DESC",
+    ).map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query([&ws_id]).map_err(|e| e.to_string())?;
+    let mut results = Vec::new();
+
+    while let Some(r) = rows.next().map_err(|e| e.to_string())? {
+        let file_path: String = r.get(1).map_err(|e| e.to_string())?;
+        let file_size_bytes = std::fs::metadata(&file_path).map(|m| m.len() as usize).unwrap_or(0);
+
+        results.push(crate::export::ExportResult {
+            export_id: r.get(0).map_err(|e| e.to_string())?,
+            file_path,
+            export_format: r.get(2).map_err(|e| e.to_string())?,
+            record_count: 0,
+            record_snapshot_hash: r.get(3).map_err(|e| e.to_string())?,
+            file_size_bytes,
+            created_at: r.get(4).map_err(|e| e.to_string())?,
+        });
+    }
+
+    Ok(results)
+}
+
+#[tauri::command]
+pub fn create_encrypted_backup(
+    state: State<AppState>,
+    passphrase: String,
+    destination_path: Option<String>,
+) -> Result<crate::security::BackupManifest, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let ws_name: String = db.conn_ref().query_row(
+        "SELECT display_name FROM workspaces WHERE id = ?1",
+        [&ws_id],
+        |row| row.get(0),
+    ).unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
+
+    let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
+        .map(|dirs| dirs.data_local_dir().to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    let db_path = data_dir.join("opendeck_workspace.db");
+    let blob_dir = data_dir.join("blobs");
+
+    let target_archive = match destination_path {
+        Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
+        _ => {
+            let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+            data_dir.join("backups").join(format!("opendeck_backup_{}.opendeck", timestamp))
+        }
+    };
+
+    let manifest = crate::security::BackupService::create_backup(
+        &db_path,
+        &blob_dir,
+        &ws_id,
+        &ws_name,
+        &target_archive,
+        &passphrase,
+    ).map_err(|e| e.to_string())?;
+
+    let audit_json = serde_json::json!({
+        "backup_archive": target_archive.to_string_lossy(),
+        "total_raw_bytes": manifest.total_raw_bytes,
+        "blob_count": manifest.blob_count,
+        "db_sha256": manifest.db_sha256
+    }).to_string();
+
+    let _ = db.record_audit_event(&ws_id, "backup", &manifest.db_sha256, "CREATE_BACKUP", &audit_json);
+
+    Ok(manifest)
+}
+
+#[tauri::command]
+pub fn restore_encrypted_backup(
+    archive_path: String,
+    passphrase: String,
+    target_data_dir: Option<String>,
+) -> Result<crate::security::BackupManifest, String> {
+    let base_dir = match target_data_dir {
+        Some(d) if !d.trim().is_empty() => std::path::PathBuf::from(d),
+        _ => directories::ProjectDirs::from("com", "theshriks", "opendeck")
+            .map(|dirs| dirs.data_local_dir().to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default()),
+    };
+
+    let target_db = base_dir.join("opendeck_workspace.db");
+    let target_blobs = base_dir.join("blobs");
+
+    crate::security::BackupService::restore_backup(
+        std::path::Path::new(&archive_path),
+        &target_db,
+        &target_blobs,
+        &passphrase,
+    ).map_err(|e| e.to_string())
+}

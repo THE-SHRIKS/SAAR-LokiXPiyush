@@ -20,6 +20,8 @@ import {
   SearchResult,
   DocumentPreview,
   AuditEventRecord,
+  ExportResult,
+  BackupManifest,
 } from "./types";
 
 export class OpenDeckApi {
@@ -190,5 +192,53 @@ export class OpenDeckApi {
    */
   static async searchWorkspace(query: string): Promise<SearchResult[]> {
     return await invoke<SearchResult[]>("search_workspace", { query });
+  }
+
+  /**
+   * Generates and exports source-traceable PDF or CSV reconciliation report.
+   */
+  static async exportReconciliationReport(
+    format: "pdf" | "csv",
+    destinationPath?: string
+  ): Promise<ExportResult> {
+    return await invoke<ExportResult>("export_reconciliation_report", {
+      format,
+      destinationPath: destinationPath || null,
+    });
+  }
+
+  /**
+   * Lists historical report exports with snapshot hashes and file paths.
+   */
+  static async listReportExports(): Promise<ExportResult[]> {
+    return await invoke<ExportResult[]>("list_report_exports");
+  }
+
+  /**
+   * Creates an encrypted authenticated .opendeck backup archive of database and blobs.
+   */
+  static async createEncryptedBackup(
+    passphrase: string,
+    destinationPath?: string
+  ): Promise<BackupManifest> {
+    return await invoke<BackupManifest>("create_encrypted_backup", {
+      passphrase,
+      destinationPath: destinationPath || null,
+    });
+  }
+
+  /**
+   * Restores an encrypted authenticated .opendeck backup archive into target directories.
+   */
+  static async restoreEncryptedBackup(
+    archivePath: string,
+    passphrase: string,
+    targetDataDir?: string
+  ): Promise<BackupManifest> {
+    return await invoke<BackupManifest>("restore_encrypted_backup", {
+      archivePath,
+      passphrase,
+      targetDataDir: targetDataDir || null,
+    });
   }
 }

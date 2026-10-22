@@ -2276,11 +2276,14 @@ name = "opendeck"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "anyhow",
  "argon2",
  "base64 0.23.1",
  "chrono",
  "directories",
+ "hex",
  "rand",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

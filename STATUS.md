@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 6 — Reliability, Export & Backup  
-**Active Task:** Phase 5 (100% Complete, Gate G5 Passed) → P6-01 (In Progress)  
+**Current Phase:** Phase 7 — Native Windows Release  
+**Active Task:** Phase 6 (100% Complete, Gate G6 Passed) → P7-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -16,7 +16,7 @@
 | **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | **PASSED & SIGNED** | [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md)<br>Screenshot: [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png)<br>Tests: [`src-tauri/tests/p3_financial_core_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p3_financial_core_verification.rs) |
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | **PASSED & SIGNED** | [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md)<br>Screenshot: [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png)<br>Tests: [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs) |
 | **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | **PASSED & SIGNED** | [`Docs/ADR/0009-editorial-interface-and-integrated-workflows.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0009-editorial-interface-and-integrated-workflows.md)<br>Screenshots: [`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png), [`tests/opendeck_debian_p5_verification_960.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_960.png)<br>Tests: [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs) |
-| **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | PENDING | |
+| **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | **PASSED & SIGNED** | [`Docs/ADR/0010-reliability-export-and-backup.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0010-reliability-export-and-backup.md)<br>Audit: [`Docs/AUDIT/0001-network-egress-denial-audit.md`](file:///home/theshriksloki/OpenDeck/Docs/AUDIT/0001-network-egress-denial-audit.md)<br>Manifest: [`RELEASE_MANIFEST.md`](file:///home/theshriksloki/OpenDeck/RELEASE_MANIFEST.md)<br>Tests: [`src-tauri/tests/p6_reliability_and_backup_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p6_reliability_and_backup_verification.rs) |
 | **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | PENDING | |
 
 ---
@@ -101,12 +101,17 @@
 - [x] **P5-06** UI audit: no dead controls, no CRM/stock template, accessible/size/responsive.
   - **Evidence:** Dual-resolution screenshots at 1280px ([`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png)) and 960px ([`tests/opendeck_debian_p5_verification_960.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_960.png)), [`Docs/ADR/0009-editorial-interface-and-integrated-workflows.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0009-editorial-interface-and-integrated-workflows.md).
 
-### Phase 6 — Export / Backup / Reliability
-- [ ] **P6-01** Export source-traceable CSV & PDF reports.
-- [ ] **P6-02** Encrypted backup/restore, integrity, cross-profile restore and passphrase failure.
-- [ ] **P6-03** Offline test with network blocked, inspect loopback and external traffic.
-- [ ] **P6-04** Long-running ingestion, OOM, crash/restart, logging scrub, parser abuse.
-- [ ] **P6-05** All third-party licenses, attribution, models, SBOM and checksums documented.
+### Phase 6 — Export / Backup / Reliability (Completed)
+- [x] **P6-01** Export source-traceable CSV & PDF reports.
+  - **Evidence:** Pure-Rust PDF 1.4 report writer in [`src-tauri/src/export/pdf_writer.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/export/pdf_writer.rs) verified via Linux `pdfinfo` and `pdftotext`, RFC 4180 CSV exporter in [`src-tauri/src/export/csv_exporter.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/export/csv_exporter.rs), exact minor-unit figures, verified in [`src-tauri/tests/p6_reliability_and_backup_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p6_reliability_and_backup_verification.rs).
+- [x] **P6-02** Encrypted backup/restore, integrity, cross-profile restore and passphrase failure.
+  - **Evidence:** Authenticated AES-256-GCM + Argon2id `.opendeck` archive container in [`src-tauri/src/security/backup.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/security/backup.rs), wrong passphrase rejection, tamper detection, cross-profile restore with `PRAGMA integrity_check;` verified in [`src-tauri/tests/p6_reliability_and_backup_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p6_reliability_and_backup_verification.rs).
+- [x] **P6-03** Offline test with network blocked, inspect loopback and external traffic.
+  - **Evidence:** Disconnected Linux network namespace isolation (`unshare -rn`) and recorded audit report [`Docs/AUDIT/0001-network-egress-denial-audit.md`](file:///home/theshriksloki/OpenDeck/Docs/AUDIT/0001-network-egress-denial-audit.md) via [`scripts/network_egress_audit.sh`](file:///home/theshriksloki/OpenDeck/scripts/network_egress_audit.sh). Zero network traffic emitted.
+- [x] **P6-04** Long-running ingestion, OOM, crash/restart, logging scrub, parser abuse.
+  - **Evidence:** High-performance credential, PII, and card scrubber in [`src-tauri/src/security/scrubber.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/security/scrubber.rs), crash recovery hook in [`src-tauri/src/db/mod.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/db/mod.rs) resetting in-flight documents to `FAILED`, verified in [`src-tauri/tests/p6_reliability_and_backup_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p6_reliability_and_backup_verification.rs).
+- [x] **P6-05** All third-party licenses, attribution, models, SBOM and checksums documented.
+  - **Evidence:** Comprehensive release manifest [`RELEASE_MANIFEST.md`](file:///home/theshriksloki/OpenDeck/RELEASE_MANIFEST.md), third-party attribution notice [`Docs/ATTRIBUTION.md`](file:///home/theshriksloki/OpenDeck/Docs/ATTRIBUTION.md), and [`Docs/ADR/0010-reliability-export-and-backup.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0010-reliability-export-and-backup.md).
 
 ### Phase 7 — Native Windows Release
 - [ ] **P7-01** Transfer repo/locks/build notes and model assets to Windows.

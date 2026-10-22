@@ -229,3 +229,24 @@ export interface SearchResult {
   score: number;
 }
 
+export interface ExportResult {
+  exportId: string;
+  filePath: string;
+  exportFormat: string;
+  recordCount: number;
+  recordSnapshotHash: string;
+  fileSizeBytes: number;
+  createdAt: string;
+}
+
+export interface BackupManifest {
+  version: number;
+  appVersion: string;
+  createdAt: string;
+  workspaceId: string;
+  workspaceName: string;
+  dbSha256: string;
+  blobCount: number;
+  totalRawBytes: number;
+}
+

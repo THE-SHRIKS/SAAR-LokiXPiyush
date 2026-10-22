@@ -14,14 +14,29 @@ impl Database {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut conn = Connection::open(path)?;
         Migrator::migrate(&mut conn)?;
-        Ok(Self { conn })
+        let db = Self { conn };
+        let _ = db.recover_interrupted_operations();
+        Ok(db)
     }
 
     /// Creates an in-memory database instance (primarily for automated integration tests).
     pub fn open_in_memory() -> Result<Self> {
         let mut conn = Connection::open_in_memory()?;
         Migrator::migrate(&mut conn)?;
-        Ok(Self { conn })
+        let db = Self { conn };
+        let _ = db.recover_interrupted_operations();
+        Ok(db)
+    }
+
+    /// Recovers from unexpected system termination by marking in-flight operations as failed.
+    pub fn recover_interrupted_operations(&self) -> Result<usize> {
+        let count = self.conn.execute(
+            "UPDATE documents 
+             SET status = 'FAILED' 
+             WHERE status IN ('PROCESSING', 'EXTRACTING');",
+            [],
+        )?;
+        Ok(count)
     }
 
     /// Access inner connection for transaction blocks.

@@ -62,6 +62,41 @@ impl Migrator {
             tx.commit()?;
         }
 
+        if current_version < 4 {
+            let tx = conn.transaction()?;
+            Self::apply_migration_v4(&tx)?;
+            tx.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (4, datetime('now'));",
+                [],
+            )?;
+            tx.commit()?;
+        }
+
+        Ok(())
+    }
+
+    fn apply_migration_v4(tx: &Transaction) -> Result<()> {
+        // 12. Report Exports Audit Trail
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS report_exports (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                period TEXT NOT NULL,
+                currencies TEXT NOT NULL,
+                export_format TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                record_snapshot_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_exports_ws ON report_exports(workspace_id);",
+            [],
+        )?;
+
         Ok(())
     }
 
