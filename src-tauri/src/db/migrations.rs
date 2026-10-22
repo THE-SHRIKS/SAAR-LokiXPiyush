@@ -1,6 +1,6 @@
 use rusqlite::{Connection, Result, Transaction};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 3;
+pub const CURRENT_SCHEMA_VERSION: i32 = 4;
 
 pub struct Migrator;
 

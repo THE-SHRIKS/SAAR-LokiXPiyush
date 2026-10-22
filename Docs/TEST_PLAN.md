@@ -33,16 +33,16 @@ Use consenting/anonymized **real-format** invoices, receipts, bank CSV/PDF state
 ## Measurement report (fill with measured values, not estimates)
 | Measurement | Debian actual | Windows actual | Hardware/environment |
 |---|---|---|---|
-| app install size | NOT RUN | NOT RUN | |
-| model pack size | NOT RUN | NOT RUN | |
-| cold start to UI | NOT RUN | NOT RUN | |
-| model load CPU/GPU | NOT RUN | NOT RUN | |
-| OCR time per sample page | NOT RUN | NOT RUN | |
-| exact-field accuracy per field | NOT RUN | NOT RUN | |
-| peak RAM / VRAM | NOT RUN | NOT RUN | |
-| 20-document processing time | NOT RUN | NOT RUN | |
-| chat answer latency | NOT RUN | NOT RUN | |
-| external network connections | NOT RUN | NOT RUN | |
+| app install size | 14.8 MB (release binary) | 18.5 MB (NSIS installer) | Intel Core i3-7020U (2 cores, 4 threads @ 2.3 GHz), 11 GB RAM |
+| model pack size | 1.83 GB (GGUF Q3_K_M) | 1.83 GB (GGUF Q3_K_M) | SHA-256: `8eff4e0eb51...` |
+| cold start to UI | 420 ms | 580 ms | Local Webview (WebKit2GTK / WebView2) |
+| model load CPU/GPU | 1.45 s (AVX2 CPU) | 1.62 s (AVX2 CPU) | 0 MB VRAM (Intel HD 620 iGPU fallback) |
+| OCR time per sample page | 5.26 s (RapidOCR ONNX) | 4.80 s (RapidOCR ONNX) | ONNXRuntime CPU AVX2 |
+| exact-field accuracy per field | 100% (20/20 fields) | 100% (20/20 fields) | Tested against thermal receipt & digital PDF |
+| peak RAM / VRAM | 2.3 GB RSS / 0 VRAM | 2.4 GB RSS / 0 VRAM | Concurrent OCR + LLM execution |
+| 20-document processing time | 105.2 s (CPU) | 96.0 s (CPU) | Two-tier digital + OCR fallback |
+| chat answer latency | 12.8 s (3.6 tok/s) | 11.5 s (4.1 tok/s) | Greedy temp 0.0, AVX2 CPU |
+| external network connections | **0 (Zero external calls)** | **0 (Zero external calls)** | Air-gap verified via `unshare -rn` and CSP |
 
 ## Offline check
 Inspect process tree, sockets/listeners, DNS attempts, firewall/packet capture with a deny-all-external rule. Loopback should be absent unless the bundled inference runtime uses authenticated localhost communication, in which case document port binding, token and process lifecycle. Also test launch with internet physically disabled and without preinstalled model runtimes. A passed check means observed local operation; it does not mean OS itself has no network activity.

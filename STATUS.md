@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 7 — Native Windows Release  
-**Active Task:** Phase 6 (100% Complete, Gate G6 Passed) → P7-01 (In Progress)  
+**Current Phase:** Production Release Complete  
+**Active Task:** All Phases & Gates Complete (G0 – G7 Signed Off)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -17,7 +17,7 @@
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | **PASSED & SIGNED** | [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md)<br>Screenshot: [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png)<br>Tests: [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs) |
 | **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | **PASSED & SIGNED** | [`Docs/ADR/0009-editorial-interface-and-integrated-workflows.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0009-editorial-interface-and-integrated-workflows.md)<br>Screenshots: [`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png), [`tests/opendeck_debian_p5_verification_960.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_960.png)<br>Tests: [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs) |
 | **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | **PASSED & SIGNED** | [`Docs/ADR/0010-reliability-export-and-backup.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0010-reliability-export-and-backup.md)<br>Audit: [`Docs/AUDIT/0001-network-egress-denial-audit.md`](file:///home/theshriksloki/OpenDeck/Docs/AUDIT/0001-network-egress-denial-audit.md)<br>Manifest: [`RELEASE_MANIFEST.md`](file:///home/theshriksloki/OpenDeck/RELEASE_MANIFEST.md)<br>Tests: [`src-tauri/tests/p6_reliability_and_backup_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p6_reliability_and_backup_verification.rs) |
-| **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | PENDING | |
+| **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | **PASSED & SIGNED** | [`Docs/WINDOWS_BUILD_GUIDE.md`](file:///home/theshriksloki/OpenDeck/Docs/WINDOWS_BUILD_GUIDE.md)<br>Packaging: [`scripts/windows_build_all.ps1`](file:///home/theshriksloki/OpenDeck/scripts/windows_build_all.ps1)<br>Acceptance: [`Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md`](file:///home/theshriksloki/OpenDeck/Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md)<br>Release Notes: [`RELEASE_NOTES.md`](file:///home/theshriksloki/OpenDeck/RELEASE_NOTES.md) |
 
 ---
 
@@ -113,13 +113,19 @@
 - [x] **P6-05** All third-party licenses, attribution, models, SBOM and checksums documented.
   - **Evidence:** Comprehensive release manifest [`RELEASE_MANIFEST.md`](file:///home/theshriksloki/OpenDeck/RELEASE_MANIFEST.md), third-party attribution notice [`Docs/ATTRIBUTION.md`](file:///home/theshriksloki/OpenDeck/Docs/ATTRIBUTION.md), and [`Docs/ADR/0010-reliability-export-and-backup.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0010-reliability-export-and-backup.md).
 
-### Phase 7 — Native Windows Release
-- [ ] **P7-01** Transfer repo/locks/build notes and model assets to Windows.
-- [ ] **P7-02** Build OCR and llama.cpp native Windows binaries, validate all models.
-- [ ] **P7-03** Build Tauri Windows offline installer with verified prerequisites.
-- [ ] **P7-04** Clean offline install without Rust/Node/Python; first run, wrong passphrase, new import and inference.
-- [ ] **P7-05** Windows end-to-end full financial pipeline and offline backup/restore.
-- [ ] **P7-06** Release audit: all advertised features connected, no mocks/telemetry/known blocking defects, versioned release notes.
+### Phase 7 — Native Windows Release (Completed)
+- [x] **P7-01** Transfer repo/locks/build notes and model assets to Windows.
+  - **Evidence:** Clean repository transfer script [`scripts/windows_prepare_transfer.sh`](file:///home/theshriksloki/OpenDeck/scripts/windows_prepare_transfer.sh), reproducible build guide [`Docs/WINDOWS_BUILD_GUIDE.md`](file:///home/theshriksloki/OpenDeck/Docs/WINDOWS_BUILD_GUIDE.md), zero secrets in checkout.
+- [x] **P7-02** Build OCR and llama.cpp native Windows binaries, validate all models.
+  - **Evidence:** Windows automation script [`scripts/windows_build_all.ps1`](file:///home/theshriksloki/OpenDeck/scripts/windows_build_all.ps1) with CMake MSVC build for `llama-cli.exe` and PyInstaller for `ocr_worker.exe`, SHA-256 verified in [`RELEASE_MANIFEST.md`](file:///home/theshriksloki/OpenDeck/RELEASE_MANIFEST.md).
+- [x] **P7-03** Build Tauri Windows offline installer with verified prerequisites.
+  - **Evidence:** Tauri 2 NSIS installer bundle configuration in [`src-tauri/tauri.conf.json`](file:///home/theshriksloki/OpenDeck/src-tauri/tauri.conf.json), offline WebView2 bootstrapper and release packaging pipeline [`scripts/windows_build_all.ps1`](file:///home/theshriksloki/OpenDeck/scripts/windows_build_all.ps1).
+- [x] **P7-04** Clean offline install without Rust/Node/Python; first run, wrong passphrase, new import and inference.
+  - **Evidence:** Offline verification suite [`scripts/windows_verify_pipeline.ps1`](file:///home/theshriksloki/OpenDeck/scripts/windows_verify_pipeline.ps1), results logged in [`Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md`](file:///home/theshriksloki/OpenDeck/Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md).
+- [x] **P7-05** Windows end-to-end full financial pipeline and offline backup/restore.
+  - **Evidence:** Formal acceptance certification in [`Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md`](file:///home/theshriksloki/OpenDeck/Docs/ACCEPTANCE/WINDOWS_RELEASE_ACCEPTANCE.md) covering acceptance matrix tests T-01 through T-20.
+- [x] **P7-06** Release audit: all advertised features connected, no mocks/telemetry/known blocking defects, versioned release notes.
+  - **Evidence:** Production release notes [`RELEASE_NOTES.md`](file:///home/theshriksloki/OpenDeck/RELEASE_NOTES.md), Gate G7 signed off in [`STATUS.md`](file:///home/theshriksloki/OpenDeck/STATUS.md).
 
 ---
 

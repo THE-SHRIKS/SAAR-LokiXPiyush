@@ -45,7 +45,8 @@ pub enum OcrError {
 }
 
 pub struct OcrClient {
-    python_bin: PathBuf,
+    python_bin: Option<PathBuf>,
+    standalone_bin: Option<PathBuf>,
     worker_script: PathBuf,
     timeout: Duration,
 }
@@ -54,21 +55,36 @@ impl OcrClient {
     pub fn new() -> Result<Self, OcrError> {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
         
-        let candidate_bins = vec![
-            root.join(".bin/python3"),
-            PathBuf::from("/home/theshriksloki/OpenDeck/.bin/python3"),
-            PathBuf::from("/usr/bin/python3"),
+        let standalone_candidates = [
+            root.join("workers/ocr/dist/ocr_worker.exe"),
+            root.join("workers/ocr/dist/ocr_worker"),
+            root.join("bin/ocr/ocr_worker.exe"),
+            root.join("bin/ocr/ocr_worker"),
         ];
 
-        let python_bin = candidate_bins
-            .into_iter()
-            .find(|p| p.exists())
-            .ok_or(OcrError::RuntimeNotFound)?;
+        let standalone_bin = standalone_candidates.into_iter().find(|p| p.exists());
+
+        let candidate_bins = vec![
+            root.join(".bin/python3"),
+            root.join(".bin/python.exe"),
+            PathBuf::from("/home/theshriksloki/OpenDeck/.bin/python3"),
+            PathBuf::from("/usr/bin/python3"),
+            PathBuf::from("python3"),
+            PathBuf::from("python"),
+            PathBuf::from("python.exe"),
+        ];
+
+        let python_bin = candidate_bins.into_iter().find(|p| p.exists());
+
+        if standalone_bin.is_none() && python_bin.is_none() {
+            return Err(OcrError::RuntimeNotFound);
+        }
 
         let worker_script = root.join("workers/ocr/ocr_worker.py");
 
         Ok(Self {
             python_bin,
+            standalone_bin,
             worker_script,
             timeout: Duration::from_secs(30),
         })
@@ -80,20 +96,34 @@ impl OcrClient {
             OcrError::WorkerReported("Invalid file path encoding".to_string())
         })?;
 
-        let script_str = self.worker_script.to_str().unwrap();
-        let python_str = self.python_bin.to_str().unwrap();
+        let (exec_cmd, args_vec) = if let Some(ref standalone) = self.standalone_bin {
+            (
+                standalone.to_string_lossy().to_string(),
+                vec!["--input-file".to_string(), file_path_str.to_string()],
+            )
+        } else if let Some(ref py) = self.python_bin {
+            (
+                py.to_string_lossy().to_string(),
+                vec![
+                    self.worker_script.to_string_lossy().to_string(),
+                    "--input-file".to_string(),
+                    file_path_str.to_string(),
+                ],
+            )
+        } else {
+            return Err(OcrError::RuntimeNotFound);
+        };
 
-        let args = [script_str, "--input-file", file_path_str];
+        let args_refs: Vec<&str> = args_vec.iter().map(|s| s.as_str()).collect();
 
-        let mut child_guard = WorkerSupervisor::spawn_worker(python_str, &args)?;
+        let mut child_guard = WorkerSupervisor::spawn_worker(&exec_cmd, &args_refs)?;
 
         // Wait with bounded timeout
         let status = child_guard.wait_with_timeout(self.timeout)?;
 
         // Read output from the worker process (re-executing standard output collection)
-        // Since ChildGuard collected the exit status, we can run direct stdio capture via supervisor
-        let output = std::process::Command::new(python_str)
-            .args(&args)
+        let output = std::process::Command::new(&exec_cmd)
+            .args(&args_refs)
             .output()?;
 
         let stdout_str = String::from_utf8_lossy(&output.stdout);

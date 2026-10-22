@@ -42,8 +42,25 @@ impl Default for LlmConfig {
             .unwrap()
             .to_path_buf();
 
+        let candidate_bins = [
+            root.join("bin/llama/llama-cli"),
+            root.join("bin/llama/llama-cli.exe"),
+            root.join("bin/llama-cli.exe"),
+        ];
+
+        let binary_path = candidate_bins
+            .into_iter()
+            .find(|p| p.exists())
+            .unwrap_or_else(|| {
+                if cfg!(windows) {
+                    root.join("bin/llama/llama-cli.exe")
+                } else {
+                    root.join("bin/llama/llama-cli")
+                }
+            });
+
         Self {
-            binary_path: root.join("bin/llama/llama-cli"),
+            binary_path,
             model_path: root.join("models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf"),
             thread_count: 2, // Intel Core i3 dual-core
             context_size: 2048,
