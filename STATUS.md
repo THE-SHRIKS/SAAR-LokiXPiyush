@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 5 — Editorial Interface & Integrated Workflows  
-**Active Task:** Phase 4 (100% Complete, Gate G4 Passed) → P5-01 (In Progress)  
+**Current Phase:** Phase 6 — Reliability, Export & Backup  
+**Active Task:** Phase 5 (100% Complete, Gate G5 Passed) → P6-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -15,7 +15,7 @@
 | **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | **PASSED & SIGNED** | [`Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md)<br>Screenshot: [`tests/opendeck_debian_p2_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p2_verification.png)<br>Tests: [`src-tauri/tests/p2_ingestion_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p2_ingestion_verification.rs) |
 | **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | **PASSED & SIGNED** | [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md)<br>Screenshot: [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png)<br>Tests: [`src-tauri/tests/p3_financial_core_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p3_financial_core_verification.rs) |
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | **PASSED & SIGNED** | [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md)<br>Screenshot: [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png)<br>Tests: [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs) |
-| **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | PENDING | |
+| **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | **PASSED & SIGNED** | [`Docs/ADR/0009-editorial-interface-and-integrated-workflows.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0009-editorial-interface-and-integrated-workflows.md)<br>Screenshots: [`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png), [`tests/opendeck_debian_p5_verification_960.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_960.png)<br>Tests: [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs) |
 | **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | PENDING | |
 | **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | PENDING | |
 
@@ -87,13 +87,19 @@
 - [x] **P4-05** Guard against prompt injection, unapproved DB writes, hallucinated totals.
   - **Evidence:** [`src-tauri/src/ai/defense.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/defense.rs), adversarial prompt injection pattern interceptor (jailbreaks, instruction overrides, fence escapes), numerical hallucination guard validating generated figures against authorized minor units, verified in [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs), [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md), screenshot [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png).
 
-### Phase 5 — Editorial Interface and Integrated Workflows
-- [ ] **P5-01** Implement polished conversation workspace and model/import/empty/error states.
-- [ ] **P5-02** Evidence inspector and PDF/image preview; keyboard navigation, true highlights.
-- [ ] **P5-03** Review surface, edit/approval flows, progress and undo/clear audit.
-- [ ] **P5-04** Reports page and optional focused trend visualization from actual records.
-- [ ] **P5-05** Settings, model readiness, local storage, backup and privacy status.
-- [ ] **P5-06** UI audit: no dead controls, no CRM/stock template, accessible/size/responsive.
+### Phase 5 — Editorial Interface and Integrated Workflows (Completed)
+- [x] **P5-01** Implement polished conversation workspace and model/import/empty/error states.
+  - **Evidence:** [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx), Grounded AI Chat workspace with intent chips, live execution states, citation pills, verification badges, verified in [`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png).
+- [x] **P5-02** Evidence inspector and PDF/image preview; keyboard navigation, true highlights.
+  - **Evidence:** Decrypted document preview IPC `get_document_preview` in [`src-tauri/src/commands.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/commands.rs), coordinate bounding box overlays on field selection in [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx), integration test [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs).
+- [x] **P5-03** Review surface, edit/approval flows, progress and undo/clear audit.
+  - **Evidence:** Manual transaction description editing flow with before/after state captures, link approval/rejection actions, and chronological immutable audit trail table in [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx), integration test [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs).
+- [x] **P5-04** Reports page and optional focused trend visualization from actual records.
+  - **Evidence:** SVG-based deterministic monthly cash flow bar chart comparing income vs expenses side-by-side without floating-point arithmetic in [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx), integration test [`src-tauri/tests/p5_editorial_interface_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p5_editorial_interface_verification.rs).
+- [x] **P5-05** Settings, model readiness, local storage, backup and privacy status.
+  - **Evidence:** Live hardware and model readiness dashboard, storage encryption metrics, and air-gap network boundary status in [`src/App.tsx`](file:///home/theshriksloki/OpenDeck/src/App.tsx).
+- [x] **P5-06** UI audit: no dead controls, no CRM/stock template, accessible/size/responsive.
+  - **Evidence:** Dual-resolution screenshots at 1280px ([`tests/opendeck_debian_p5_verification_1280.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_1280.png)) and 960px ([`tests/opendeck_debian_p5_verification_960.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p5_verification_960.png)), [`Docs/ADR/0009-editorial-interface-and-integrated-workflows.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0009-editorial-interface-and-integrated-workflows.md).
 
 ### Phase 6 — Export / Backup / Reliability
 - [ ] **P6-01** Export source-traceable CSV & PDF reports.

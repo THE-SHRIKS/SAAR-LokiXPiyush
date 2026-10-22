@@ -389,6 +389,77 @@ pub fn get_document_details(
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentPreview {
+    pub document_id: String,
+    pub mime_type: String,
+    pub data_base64: String,
+    pub text_preview: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_document_preview(
+    state: State<AppState>,
+    document_id: String,
+) -> Result<DocumentPreview, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is currently unlocked.")?
+        .clone();
+    drop(ws_guard);
+
+    let key_guard = state.active_master_key.lock().unwrap();
+    let master_key = key_guard
+        .as_ref()
+        .ok_or("Workspace master key is locked.")?
+        .clone();
+    drop(key_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let (sha256, doc_type): (String, String) = db
+        .conn_ref()
+        .query_row(
+            "SELECT sha256, doc_type FROM documents WHERE id = ?1 AND workspace_id = ?2 LIMIT 1;",
+            params![document_id, ws_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| format!("Document not found: {}", e))?;
+    drop(db_guard);
+
+    let blob_guard = state.blob_store.lock().unwrap();
+    let blob_store = blob_guard.as_ref().ok_or("BlobStore uninitialized.")?;
+
+    let decrypted_bytes = blob_store
+        .read_blob(&master_key, &sha256)
+        .map_err(|e| format!("Failed to read decrypted blob: {}", e))?;
+    drop(blob_guard);
+
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&decrypted_bytes);
+
+    let (mime_type, text_preview) = match doc_type.to_uppercase().as_str() {
+        "PNG" => ("image/png".to_string(), None),
+        "JPEG" | "JPG" => ("image/jpeg".to_string(), None),
+        "PDF" => ("application/pdf".to_string(), None),
+        "CSV" => (
+            "text/csv".to_string(),
+            Some(String::from_utf8_lossy(&decrypted_bytes[..std::cmp::min(decrypted_bytes.len(), 4096)]).to_string()),
+        ),
+        _ => ("application/octet-stream".to_string(), None),
+    };
+
+    Ok(DocumentPreview {
+        document_id,
+        mime_type,
+        data_base64: b64,
+        text_preview,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReconciliationResult {
     pub links: Vec<crate::finance::matching::ProposedLink>,
     pub anomalies: Vec<crate::finance::anomaly::FinancialAnomaly>,
@@ -642,6 +713,57 @@ pub fn correct_transaction(
 
     crate::finance::review::ReviewService::correct_transaction(db, &ws_id, &transaction_id, &new_description)
         .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditEventRecord {
+    pub id: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub action: String,
+    pub payload_json: String,
+    pub created_at: String,
+}
+
+#[tauri::command]
+pub fn list_audit_log(state: State<AppState>) -> Result<Vec<AuditEventRecord>, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, entity_type, entity_id, action, details_json, timestamp
+             FROM audit_log WHERE workspace_id = ?1 ORDER BY timestamp DESC LIMIT 100;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(AuditEventRecord {
+                id: row.get(0)?,
+                entity_type: row.get(1)?,
+                entity_id: row.get(2)?,
+                action: row.get(3)?,
+                payload_json: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
 }
 
 #[tauri::command]

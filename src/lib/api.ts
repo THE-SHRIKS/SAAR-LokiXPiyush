@@ -18,6 +18,8 @@ import {
   GroundedChatResponse,
   CategoryProposal,
   SearchResult,
+  DocumentPreview,
+  AuditEventRecord,
 } from "./types";
 
 export class OpenDeckApi {
@@ -100,6 +102,13 @@ export class OpenDeckApi {
   }
 
   /**
+   * Fetches decrypted document preview bytes (base64 data URI).
+   */
+  static async getDocumentPreview(documentId: string): Promise<DocumentPreview> {
+    return await invoke<DocumentPreview>("get_document_preview", { documentId });
+  }
+
+  /**
    * Triggers deterministic reconciliation engine over active workspace records.
    */
   static async runReconciliation(): Promise<ReconciliationResult> {
@@ -139,6 +148,13 @@ export class OpenDeckApi {
    */
   static async correctTransaction(transactionId: string, newDescription: string): Promise<void> {
     return await invoke<void>("correct_transaction", { transactionId, newDescription });
+  }
+
+  /**
+   * Retrieves immutable audit log events.
+   */
+  static async listAuditLog(): Promise<AuditEventRecord[]> {
+    return await invoke<AuditEventRecord[]>("list_audit_log");
   }
 
   /**

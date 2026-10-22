@@ -64,6 +64,22 @@ export interface DocumentDetails {
   invoiceTotalMinor?: number;
 }
 
+export interface DocumentPreview {
+  documentId: string;
+  mimeType: string;
+  dataBase64: string;
+  textPreview?: string;
+}
+
+export interface AuditEventRecord {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  payloadJson: string;
+  createdAt: string;
+}
+
 export interface IngestResultSuccess {
   type: "success";
   documentId: string;

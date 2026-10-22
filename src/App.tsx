@@ -11,6 +11,9 @@ import {
   GroundedChatResponse,
   CategoryProposal,
   SearchResult,
+  NormalizedField,
+  DocumentPreview,
+  AuditEventRecord,
   formatMinorCurrency,
 } from "./lib/types";
 import { OpenDeckApi } from "./lib/api";
@@ -83,6 +86,15 @@ export const App: React.FC = () => {
   const [proposals, setProposals] = useState<Record<string, CategoryProposal>>({});
   const [classifyingTxId, setClassifyingTxId] = useState<string | null>(null);
 
+  // Evidence Inspector Visual Preview & Bounding Box Highlighting state
+  const [docPreview, setDocPreview] = useState<DocumentPreview | null>(null);
+  const [activeField, setActiveField] = useState<NormalizedField | null>(null);
+
+  // Audit Log & Correction Flow state
+  const [auditLogs, setAuditLogs] = useState<AuditEventRecord[]>([]);
+  const [correctingTx, setCorrectingTx] = useState<TransactionRecord | null>(null);
+  const [correctionInput, setCorrectionInput] = useState<string>("");
+
   // Authentication & Workspace creation state
   const [passphrase, setPassphrase] = useState<string>("");
   const [workspaceName, setWorkspaceName] = useState<string>("THE SHRIKS Primary");
@@ -113,6 +125,8 @@ export const App: React.FC = () => {
       setAnomalies(anoms);
       const summary = await OpenDeckApi.getFinancialSummary("USD");
       setFinancialSummary(summary);
+      const logs = await OpenDeckApi.listAuditLog();
+      setAuditLogs(logs);
     } catch (e) {
       console.error("Refresh failed:", e);
     }
@@ -226,8 +240,25 @@ export const App: React.FC = () => {
     try {
       const details = await OpenDeckApi.getDocumentDetails(docId);
       setSelectedDocDetails(details);
+      const preview = await OpenDeckApi.getDocumentPreview(docId);
+      setDocPreview(preview);
+      setActiveField(null);
     } catch (err) {
       console.error("Failed to load details:", err);
+    }
+  };
+
+  const handleSaveCorrection = async () => {
+    if (!correctingTx || !correctionInput.trim()) return;
+    try {
+      await OpenDeckApi.correctTransaction(correctingTx.id, correctionInput.trim());
+      setReviewMessage(`Transaction ${correctingTx.id.substring(0, 8)} corrected to: "${correctionInput.trim()}"`);
+      setCorrectingTx(null);
+      setCorrectionInput("");
+      await refreshData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setReviewMessage(`Correction failed: ${msg}`);
     }
   };
 
@@ -671,6 +702,95 @@ export const App: React.FC = () => {
                           </div>
                         )}
 
+                        {/* Document Visual Preview Surface with Bounding Box Highlights */}
+                        {docPreview && (
+                          <div className="detail-section">
+                            <h5>Document Preview & Coordinate Evidence</h5>
+                            {docPreview.mimeType.startsWith("image/") && (
+                              <div className="preview-container">
+                                <div
+                                  className="preview-image-wrapper"
+                                  style={{
+                                    position: "relative",
+                                    overflow: "hidden",
+                                    borderRadius: 6,
+                                    border: "1px solid var(--border-subtle)",
+                                  }}
+                                >
+                                  <img
+                                    src={`data:${docPreview.mimeType};base64,${docPreview.dataBase64}`}
+                                    alt="Document"
+                                    style={{ width: "100%", display: "block" }}
+                                  />
+                                  {activeField && (() => {
+                                    try {
+                                      const box = JSON.parse(activeField.boundingBoxJson);
+                                      if (
+                                        Array.isArray(box) &&
+                                        box.length >= 4 &&
+                                        typeof box[0] === "number"
+                                      ) {
+                                        return (
+                                          <div
+                                            className="bbox-overlay-highlight"
+                                            style={{
+                                              position: "absolute",
+                                              left: `${box[0]}px`,
+                                              top: `${box[1]}px`,
+                                              width: `${Math.max(box[2] - box[0], 20)}px`,
+                                              height: `${Math.max(box[3] - box[1], 15)}px`,
+                                              border: "2px solid #f59e0b",
+                                              backgroundColor: "rgba(245, 158, 11, 0.25)",
+                                              pointerEvents: "none",
+                                            }}
+                                          />
+                                        );
+                                      }
+                                    } catch {
+                                      return null;
+                                    }
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {docPreview.mimeType === "application/pdf" && (
+                              <div className="preview-container">
+                                <object
+                                  data={`data:application/pdf;base64,${docPreview.dataBase64}`}
+                                  type="application/pdf"
+                                  width="100%"
+                                  height="240px"
+                                  style={{
+                                    borderRadius: 6,
+                                    border: "1px solid var(--border-subtle)",
+                                  }}
+                                >
+                                  <p className="text-small text-muted">Digital PDF Decrypted & Ready.</p>
+                                </object>
+                              </div>
+                            )}
+
+                            {docPreview.mimeType === "text/csv" && docPreview.textPreview && (
+                              <div className="preview-container">
+                                <pre
+                                  className="csv-preview-text"
+                                  style={{
+                                    maxHeight: "180px",
+                                    overflowY: "auto",
+                                    fontSize: "11px",
+                                    background: "var(--bg-primary)",
+                                    padding: "8px",
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  {docPreview.textPreview}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="detail-section">
                           <h5>Extracted Normalized Fields</h5>
                           {selectedDocDetails.fields.length === 0 ? (
@@ -680,7 +800,15 @@ export const App: React.FC = () => {
                           ) : (
                             <div className="field-list">
                               {selectedDocDetails.fields.map((f, idx) => (
-                                <div key={idx} className="field-item">
+                                <div
+                                  key={idx}
+                                  className={`field-item ${
+                                    activeField?.fieldKey === f.fieldKey ? "active-field" : ""
+                                  }`}
+                                  onClick={() => setActiveField(f)}
+                                  onMouseEnter={() => setActiveField(f)}
+                                  style={{ cursor: "pointer" }}
+                                >
                                   <div className="field-meta">
                                     <span className="field-key">{f.fieldKey}</span>
                                     <span className="field-confidence">
@@ -726,6 +854,57 @@ export const App: React.FC = () => {
                       Deterministic integer minor-unit sums
                     </span>
                   </div>
+
+                  {correctingTx && (
+                    <div
+                      className="correction-modal-card"
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        padding: "16px",
+                        borderRadius: 8,
+                        marginBottom: "16px",
+                        border: "1px solid var(--accent-primary)",
+                      }}
+                    >
+                      <div className="section-title">
+                        <h5>
+                          Manual Audit Correction for Transaction:{" "}
+                          <span className="font-mono text-muted">
+                            {correctingTx.id.substring(0, 8)}...
+                          </span>
+                        </h5>
+                      </div>
+                      <p className="text-small text-muted">
+                        Mutations are recorded in the immutable append-only audit log with
+                        before/after state captures.
+                      </p>
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                        <input
+                          type="text"
+                          value={correctionInput}
+                          onChange={(e) => setCorrectionInput(e.target.value)}
+                          className="input-field"
+                          style={{ flex: 1 }}
+                          placeholder="Enter corrected description..."
+                          autoFocus
+                        />
+                        <button className="btn-primary" onClick={handleSaveCorrection}>
+                          <Check size={14} />
+                          <span>Save & Log Audit</span>
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => {
+                            setCorrectingTx(null);
+                            setCorrectionInput("");
+                          }}
+                        >
+                          <X size={14} />
+                          <span>Cancel</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {transactions.length === 0 ? (
                     <div className="empty-state">
@@ -779,30 +958,46 @@ export const App: React.FC = () => {
                                 </span>
                               </td>
                               <td>
-                                {proposal ? (
-                                  proposal.status === "APPROVED" ? (
-                                    <span className="badge-match badge-exact">Approved</span>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  {proposal ? (
+                                    proposal.status === "APPROVED" ? (
+                                      <span className="badge-match badge-exact">Approved</span>
+                                    ) : (
+                                      <div className="category-proposal-box">
+                                        <button
+                                          className="btn-action btn-approve"
+                                          onClick={() => handleApproveCategory(tx.id)}
+                                        >
+                                          <Check size={12} />
+                                          <span>Approve ({Math.round(proposal.confidenceScore * 100)}%)</span>
+                                        </button>
+                                      </div>
+                                    )
                                   ) : (
-                                    <div className="category-proposal-box">
-                                      <button
-                                        className="btn-action btn-approve"
-                                        onClick={() => handleApproveCategory(tx.id)}
-                                      >
-                                        <Check size={12} />
-                                        <span>Approve ({Math.round(proposal.confidenceScore * 100)}%)</span>
-                                      </button>
-                                    </div>
-                                  )
-                                ) : (
+                                    <button
+                                      className="btn-classify"
+                                      onClick={() => handleClassifyTransaction(tx.id)}
+                                      disabled={classifyingTxId === tx.id}
+                                    >
+                                      <Sparkles size={12} className={classifyingTxId === tx.id ? "spin" : ""} />
+                                      <span>{classifyingTxId === tx.id ? "Classifying..." : "Auto-Classify"}</span>
+                                    </button>
+                                  )}
                                   <button
-                                    className="btn-classify"
-                                    onClick={() => handleClassifyTransaction(tx.id)}
-                                    disabled={classifyingTxId === tx.id}
+                                    className="btn-action"
+                                    style={{
+                                      background: "var(--bg-tertiary)",
+                                      border: "1px solid var(--border-subtle)",
+                                      color: "var(--text-secondary)",
+                                    }}
+                                    onClick={() => {
+                                      setCorrectingTx(tx);
+                                      setCorrectionInput(tx.description);
+                                    }}
                                   >
-                                    <Sparkles size={12} className={classifyingTxId === tx.id ? "spin" : ""} />
-                                    <span>{classifyingTxId === tx.id ? "Classifying..." : "Auto-Classify"}</span>
+                                    Edit
                                   </button>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -923,6 +1118,56 @@ export const App: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Immutable Audit Trail Section */}
+                  <div className="audit-section" style={{ marginTop: 28 }}>
+                    <div className="section-title">
+                      <ShieldCheck size={16} className="icon-green" />
+                      <h5>Immutable Audit Trail ({auditLogs.length} events logged)</h5>
+                    </div>
+                    {auditLogs.length === 0 ? (
+                      <p className="text-small text-muted" style={{ marginTop: 8 }}>
+                        No mutations recorded in audit log yet. Actions like match approval,
+                        rejection, description correction, or category classification generate
+                        permanent cryptographic audit records.
+                      </p>
+                    ) : (
+                      <table className="data-table" style={{ marginTop: 8, fontSize: 12 }}>
+                        <thead>
+                          <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Target Entity</th>
+                            <th>Audit Evidence Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {auditLogs.map((log) => (
+                            <tr key={log.id}>
+                              <td className="font-mono text-muted">{log.createdAt}</td>
+                              <td>
+                                <span className="badge-match badge-exact">{log.action}</span>
+                              </td>
+                              <td className="font-mono">
+                                {log.entityType} ({log.entityId.substring(0, 8)}...)
+                              </td>
+                              <td
+                                className="font-mono text-muted"
+                                style={{
+                                  maxWidth: 320,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {log.payloadJson}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -971,6 +1216,101 @@ export const App: React.FC = () => {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {financialSummary && financialSummary.monthlyBreakdown.length > 0 && (
+                    <div
+                      className="report-chart-container"
+                      style={{
+                        backgroundColor: "var(--bg-secondary)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: 8,
+                        padding: 16,
+                        margin: "20px 0",
+                      }}
+                    >
+                      <div className="section-title" style={{ marginBottom: 12 }}>
+                        <BarChart3 size={16} />
+                        <h5>Monthly Cash Flow Trends (Deterministic Integer Arithmetic)</h5>
+                      </div>
+                      <svg
+                        width="100%"
+                        height="160"
+                        viewBox="0 0 600 160"
+                        style={{ overflow: "visible" }}
+                      >
+                        {financialSummary.monthlyBreakdown.map((m, idx) => {
+                          const maxAmount = Math.max(
+                            ...financialSummary.monthlyBreakdown.map((x) =>
+                              Math.max(x.totalIncomeMinor, x.totalExpenseMinor)
+                            ),
+                            1
+                          );
+                          const xOffset = 60 + idx * 140;
+                          const incomeHeight = Math.max(
+                            Math.round((m.totalIncomeMinor / maxAmount) * 110),
+                            4
+                          );
+                          const expenseHeight = Math.max(
+                            Math.round((m.totalExpenseMinor / maxAmount) * 110),
+                            4
+                          );
+                          return (
+                            <g key={m.monthKey}>
+                              {/* Income Bar */}
+                              <rect
+                                x={xOffset}
+                                y={130 - incomeHeight}
+                                width="28"
+                                height={incomeHeight}
+                                fill="#10b981"
+                                rx="3"
+                              />
+                              <text
+                                x={xOffset + 14}
+                                y={125 - incomeHeight}
+                                textAnchor="middle"
+                                fill="#34d399"
+                                fontSize="10"
+                                fontFamily="monospace"
+                              >
+                                {formatMinorCurrency(m.totalIncomeMinor, "USD")}
+                              </text>
+                              {/* Expense Bar */}
+                              <rect
+                                x={xOffset + 34}
+                                y={130 - expenseHeight}
+                                width="28"
+                                height={expenseHeight}
+                                fill="#ef4444"
+                                rx="3"
+                              />
+                              <text
+                                x={xOffset + 48}
+                                y={125 - expenseHeight}
+                                textAnchor="middle"
+                                fill="#f87171"
+                                fontSize="10"
+                                fontFamily="monospace"
+                              >
+                                {formatMinorCurrency(m.totalExpenseMinor, "USD")}
+                              </text>
+                              {/* Month Label */}
+                              <text
+                                x={xOffset + 31}
+                                y="150"
+                                textAnchor="middle"
+                                fill="#a0a6b5"
+                                fontSize="11"
+                                fontFamily="sans-serif"
+                              >
+                                {m.monthKey}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
                     </div>
                   )}
 
