@@ -89,10 +89,18 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
     .expect("Failed to ingest bank_us_sample.csv");
 
     match us_res {
-        IngestResult::Success { records_extracted, .. } => {
-            assert!(records_extracted > 0, "US bank transactions must be ingested");
+        IngestResult::Success {
+            records_extracted, ..
+        } => {
+            assert!(
+                records_extracted > 0,
+                "US bank transactions must be ingested"
+            );
         }
-        other => panic!("Expected IngestResult::Success for US bank CSV, got {:?}", other),
+        other => panic!(
+            "Expected IngestResult::Success for US bank CSV, got {:?}",
+            other
+        ),
     }
 
     // Insert CloudHosting invoice manually to establish grounded ground truth
@@ -131,15 +139,33 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
     // -------------------------------------------------------------
     let fts_results = SearchEngine::search(db.conn_ref(), workspace_id, "CloudHosting", 10)
         .expect("FTS5 search must succeed");
-    assert!(!fts_results.is_empty(), "FTS5 search must find indexed CloudHosting record");
-    assert!(fts_results.iter().any(|r| r.entity_id == cloud_doc_id), "Must find CloudHosting document");
-    assert!(fts_results.iter().any(|r| r.entity_type == "TRANSACTION"), "Must find CloudHosting transaction");
-    assert!(fts_results[0].snippet.to_lowercase().contains("<mark>cloudhosting</mark>"));
+    assert!(
+        !fts_results.is_empty(),
+        "FTS5 search must find indexed CloudHosting record"
+    );
+    assert!(
+        fts_results.iter().any(|r| r.entity_id == cloud_doc_id),
+        "Must find CloudHosting document"
+    );
+    assert!(
+        fts_results.iter().any(|r| r.entity_type == "TRANSACTION"),
+        "Must find CloudHosting transaction"
+    );
+    assert!(fts_results[0]
+        .snippet
+        .to_lowercase()
+        .contains("<mark>cloudhosting</mark>"));
 
     let fts_gst = SearchEngine::search(db.conn_ref(), workspace_id, "ACME", 10)
         .expect("FTS5 search for ACME must succeed");
-    assert!(!fts_gst.is_empty(), "FTS5 search must find indexed GST document");
-    assert!(fts_gst.iter().any(|r| r.entity_id == gst_doc_id), "Must find indexed GST document for ACME");
+    assert!(
+        !fts_gst.is_empty(),
+        "FTS5 search must find indexed GST document"
+    );
+    assert!(
+        fts_gst.iter().any(|r| r.entity_id == gst_doc_id),
+        "Must find indexed GST document for ACME"
+    );
 
     // -------------------------------------------------------------
     // Step 4: P4-03 Model-Assisted Classification with GBNF Constraints
@@ -192,10 +218,15 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
     // Step 5: P4-02 Grounded Local Q&A with Fact Packets & Citations
     // -------------------------------------------------------------
     let question = "What was the invoice total for CloudHosting Corp?";
-    let fact_packet = GroundingEngine::build_fact_packet(db.conn_ref(), workspace_id, question, "USD")
-        .expect("Fact packet compilation must succeed");
+    let fact_packet =
+        GroundingEngine::build_fact_packet(db.conn_ref(), workspace_id, question, "USD")
+            .expect("Fact packet compilation must succeed");
 
-    assert_eq!(fact_packet.invoices.len(), 2, "Must contain CloudHosting and GST invoices");
+    assert_eq!(
+        fact_packet.invoices.len(),
+        2,
+        "Must contain CloudHosting and GST invoices"
+    );
     let (sys_prompt, usr_prompt) = GroundingEngine::build_prompts(&fact_packet);
 
     let raw_answer = llm_engine
@@ -226,7 +257,8 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
     // Verify hallucination validator rejects fictional figures
     let authorized_figures = [12000, 4550, 11800000];
     let hallucinated_text = "Your total cloud spend was $9,999.00 across 5 servers.";
-    let check_res = AdversarialDefense::validate_grounded_numbers(hallucinated_text, &authorized_figures);
+    let check_res =
+        AdversarialDefense::validate_grounded_numbers(hallucinated_text, &authorized_figures);
     assert!(
         check_res.is_err(),
         "Must flag ungrounded monetary figure ($9,999.00) as hallucination"

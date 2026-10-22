@@ -342,12 +342,14 @@ mod tests {
     #[test]
     fn test_schema_migration_idempotent() {
         let mut conn = Connection::open_in_memory().unwrap();
-        
+
         // First run: apply migration v1
         Migrator::migrate(&mut conn).expect("Initial migration should succeed");
-        
+
         let version: i32 = conn
-            .query_row("SELECT MAX(version) FROM schema_migrations;", [], |r| r.get(0))
+            .query_row("SELECT MAX(version) FROM schema_migrations;", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
@@ -367,7 +369,10 @@ mod tests {
             [],
         );
 
-        assert!(res.is_err(), "Foreign key constraint failure must reject invalid workspace reference");
+        assert!(
+            res.is_err(),
+            "Foreign key constraint failure must reject invalid workspace reference"
+        );
     }
 
     #[test]
@@ -377,6 +382,10 @@ mod tests {
             "CREATE VIRTUAL TABLE test_fts USING fts5(title, content);",
             [],
         );
-        assert!(res.is_ok(), "FTS5 virtual table must be supported: {:?}", res);
+        assert!(
+            res.is_ok(),
+            "FTS5 virtual table must be supported: {:?}",
+            res
+        );
     }
 }

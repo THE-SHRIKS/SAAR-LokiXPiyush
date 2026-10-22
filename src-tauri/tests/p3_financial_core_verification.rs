@@ -1,7 +1,9 @@
 use opendeck_lib::db::Database;
 use opendeck_lib::finance::aggregates::FinancialAggregator;
 use opendeck_lib::finance::anomaly::AnomalyDetector;
-use opendeck_lib::finance::matching::{InvoiceCandidate, ReconciliationMatcher, TransactionCandidate};
+use opendeck_lib::finance::matching::{
+    InvoiceCandidate, ReconciliationMatcher, TransactionCandidate,
+};
 use opendeck_lib::finance::review::ReviewService;
 use opendeck_lib::ingestion::{DocumentOrchestrator, IngestResult, OcrClient};
 use opendeck_lib::security::{BlobStore, KeyDeriver};
@@ -75,7 +77,10 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
 
     let _receipt_doc_id = match receipt_res {
         IngestResult::Success { document_id, .. } => document_id,
-        other => panic!("Expected IngestResult::Success for receipt, got {:?}", other),
+        other => panic!(
+            "Expected IngestResult::Success for receipt, got {:?}",
+            other
+        ),
     };
 
     // Also manually insert a digital invoice for CloudHosting Corp to test exact invoice number matching
@@ -115,10 +120,18 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
     .expect("Failed to ingest bank_us_sample.csv");
 
     match us_res {
-        IngestResult::Success { records_extracted, .. } => {
-            assert!(records_extracted > 0, "US bank transactions must be ingested");
+        IngestResult::Success {
+            records_extracted, ..
+        } => {
+            assert!(
+                records_extracted > 0,
+                "US bank transactions must be ingested"
+            );
         }
-        other => panic!("Expected IngestResult::Success for US bank CSV, got {:?}", other),
+        other => panic!(
+            "Expected IngestResult::Success for US bank CSV, got {:?}",
+            other
+        ),
     }
 
     let hdfc_path = root_fixtures.join("statements/bank_hdfc_sample.csv");
@@ -134,10 +147,18 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
     .expect("Failed to ingest bank_hdfc_sample.csv");
 
     match hdfc_res {
-        IngestResult::Success { records_extracted, .. } => {
-            assert!(records_extracted > 0, "HDFC bank transactions must be ingested");
+        IngestResult::Success {
+            records_extracted, ..
+        } => {
+            assert!(
+                records_extracted > 0,
+                "HDFC bank transactions must be ingested"
+            );
         }
-        other => panic!("Expected IngestResult::Success for HDFC bank CSV, got {:?}", other),
+        other => panic!(
+            "Expected IngestResult::Success for HDFC bank CSV, got {:?}",
+            other
+        ),
     }
 
     // -------------------------------------------------------------
@@ -196,11 +217,17 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
 
     let transactions: Vec<TransactionCandidate> = tx_rows.map(|r| r.unwrap()).collect();
     drop(tx_stmt);
-    assert!(transactions.len() >= 10, "Must have transaction records from both banks");
+    assert!(
+        transactions.len() >= 10,
+        "Must have transaction records from both banks"
+    );
 
     // Match records
     let proposed_links = ReconciliationMatcher::match_records(&invoices, &transactions);
-    assert!(!proposed_links.is_empty(), "ReconciliationMatcher must produce proposed links");
+    assert!(
+        !proposed_links.is_empty(),
+        "ReconciliationMatcher must produce proposed links"
+    );
 
     // Verify CloudHosting match:
     // Invoice 12000 minor ($120.00) matches transaction "CLOUDHOSTING CORP INV-88912" (-12000)
@@ -238,12 +265,18 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
     // -------------------------------------------------------------
     let anomalies = AnomalyDetector::detect_anomalies(&invoices, &transactions);
     // There should be anomalies detected (e.g. large unmatched debit transactions like client payout or transfers)
-    assert!(!anomalies.is_empty(), "AnomalyDetector must report alerts for unlinked high transactions");
+    assert!(
+        !anomalies.is_empty(),
+        "AnomalyDetector must report alerts for unlinked high transactions"
+    );
 
     let high_unmatched = anomalies
         .iter()
         .find(|a| a.anomaly_type == "LARGE_UNMATCHED");
-    assert!(high_unmatched.is_some(), "Must flag large unmatched debit as anomaly");
+    assert!(
+        high_unmatched.is_some(),
+        "Must flag large unmatched debit as anomaly"
+    );
 
     // -------------------------------------------------------------
     // Step 5: Persist Link & Test Review Inbox Workflow
@@ -345,7 +378,10 @@ fn test_p3_full_financial_core_and_reconciliation_verification() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(correction_audit, 1, "Audit log must contain CORRECT_TRANSACTION event");
+    assert_eq!(
+        correction_audit, 1,
+        "Audit log must contain CORRECT_TRANSACTION event"
+    );
 
     // -------------------------------------------------------------
     // Step 6: Verify Monthly Financial Aggregates

@@ -148,7 +148,8 @@ impl LlmEngine {
         // If grammar is specified, write to a temp grammar file
         let mut temp_grammar_path = None;
         if let Some(grammar_str) = grammar {
-            let temp_path = std::env::temp_dir().join(format!("opendeck_grammar_{}.gbnf", uuid::Uuid::new_v4()));
+            let temp_path = std::env::temp_dir()
+                .join(format!("opendeck_grammar_{}.gbnf", uuid::Uuid::new_v4()));
             std::fs::write(&temp_path, grammar_str)?;
             cmd.arg("--grammar-file").arg(&temp_path);
             temp_grammar_path = Some(temp_path);
@@ -167,12 +168,10 @@ impl LlmEngine {
         let t0 = Instant::now();
         let output = loop {
             if handle.is_finished() {
-                break handle
-                    .join()
-                    .map_err(|_| LlmError::ExecutionFailed {
-                        code: None,
-                        stderr: "Thread join error during inference".to_string(),
-                    })??;
+                break handle.join().map_err(|_| LlmError::ExecutionFailed {
+                    code: None,
+                    stderr: "Thread join error during inference".to_string(),
+                })??;
             }
             if t0.elapsed() > timeout {
                 if let Some(gp) = temp_grammar_path {
@@ -228,8 +227,14 @@ mod tests {
     #[test]
     fn test_llm_config_paths_resolve() {
         let config = LlmConfig::default();
-        assert!(config.binary_path.exists(), "llama-cli must exist at default path");
-        assert!(config.model_path.exists(), "Model file must exist at default path");
+        assert!(
+            config.binary_path.exists(),
+            "llama-cli must exist at default path"
+        );
+        assert!(
+            config.model_path.exists(),
+            "Model file must exist at default path"
+        );
     }
 
     #[test]

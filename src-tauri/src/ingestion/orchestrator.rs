@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::db::Database;
@@ -88,7 +88,9 @@ impl DocumentOrchestrator {
     ) -> Result<IngestResult, IngestionError> {
         let metadata = fs::metadata(file_path)?;
         if metadata.len() > MAX_FILE_SIZE_BYTES {
-            return Err(IngestionError::FileTooLarge { size: metadata.len() });
+            return Err(IngestionError::FileTooLarge {
+                size: metadata.len(),
+            });
         }
 
         let file_bytes = fs::read(file_path)?;

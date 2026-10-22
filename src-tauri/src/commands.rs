@@ -445,7 +445,12 @@ pub fn get_document_preview(
         "PDF" => ("application/pdf".to_string(), None),
         "CSV" => (
             "text/csv".to_string(),
-            Some(String::from_utf8_lossy(&decrypted_bytes[..std::cmp::min(decrypted_bytes.len(), 4096)]).to_string()),
+            Some(
+                String::from_utf8_lossy(
+                    &decrypted_bytes[..std::cmp::min(decrypted_bytes.len(), 4096)],
+                )
+                .to_string(),
+            ),
         ),
         _ => ("application/octet-stream".to_string(), None),
     };
@@ -535,10 +540,12 @@ pub fn run_reconciliation(state: State<AppState>) -> Result<ReconciliationResult
     }
 
     // 3. Run deterministic reconciliation matching
-    let links = crate::finance::matching::ReconciliationMatcher::match_records(&invoices, &transactions);
+    let links =
+        crate::finance::matching::ReconciliationMatcher::match_records(&invoices, &transactions);
 
     // 4. Run deterministic anomaly detection
-    let anomalies = crate::finance::anomaly::AnomalyDetector::detect_anomalies(&invoices, &transactions);
+    let anomalies =
+        crate::finance::anomaly::AnomalyDetector::detect_anomalies(&invoices, &transactions);
 
     // 5. Persist proposed links to database
     let now = chrono::Utc::now().to_rfc3339();
@@ -585,7 +592,9 @@ pub fn run_reconciliation(state: State<AppState>) -> Result<ReconciliationResult
 }
 
 #[tauri::command]
-pub fn list_reconciliation_links(state: State<AppState>) -> Result<Vec<crate::finance::matching::ProposedLink>, String> {
+pub fn list_reconciliation_links(
+    state: State<AppState>,
+) -> Result<Vec<crate::finance::matching::ProposedLink>, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
     let ws_id = match ws_guard.as_ref() {
         Some(id) => id.clone(),
@@ -627,7 +636,9 @@ pub fn list_reconciliation_links(state: State<AppState>) -> Result<Vec<crate::fi
 }
 
 #[tauri::command]
-pub fn list_anomalies(state: State<AppState>) -> Result<Vec<crate::finance::anomaly::FinancialAnomaly>, String> {
+pub fn list_anomalies(
+    state: State<AppState>,
+) -> Result<Vec<crate::finance::anomaly::FinancialAnomaly>, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
     let ws_id = match ws_guard.as_ref() {
         Some(id) => id.clone(),
@@ -667,12 +678,12 @@ pub fn list_anomalies(state: State<AppState>) -> Result<Vec<crate::finance::anom
 }
 
 #[tauri::command]
-pub fn approve_reconciliation_link(
-    state: State<AppState>,
-    link_id: String,
-) -> Result<(), String> {
+pub fn approve_reconciliation_link(state: State<AppState>, link_id: String) -> Result<(), String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let mut db_guard = state.db.lock().unwrap();
@@ -683,12 +694,12 @@ pub fn approve_reconciliation_link(
 }
 
 #[tauri::command]
-pub fn reject_reconciliation_link(
-    state: State<AppState>,
-    link_id: String,
-) -> Result<(), String> {
+pub fn reject_reconciliation_link(state: State<AppState>, link_id: String) -> Result<(), String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
@@ -705,14 +716,22 @@ pub fn correct_transaction(
     new_description: String,
 ) -> Result<(), String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
 
-    crate::finance::review::ReviewService::correct_transaction(db, &ws_id, &transaction_id, &new_description)
-        .map_err(|e| e.to_string())
+    crate::finance::review::ReviewService::correct_transaction(
+        db,
+        &ws_id,
+        &transaction_id,
+        &new_description,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -772,7 +791,10 @@ pub fn get_financial_summary(
     currency: String,
 ) -> Result<crate::finance::aggregates::FinancialSummary, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
@@ -813,7 +835,10 @@ pub fn chat_grounded(
     query: String,
 ) -> Result<crate::ai::GroundedChatResponse, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     // Defense: Detect adversarial prompt injection
@@ -831,21 +856,27 @@ pub fn chat_grounded(
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
 
     // Build fact packet from active workspace records
-    let fact_packet = crate::ai::GroundingEngine::build_fact_packet(db.conn_ref(), &ws_id, &query, "USD")
-        .map_err(|e| format!("Failed to build fact packet: {}", e))?;
+    let fact_packet =
+        crate::ai::GroundingEngine::build_fact_packet(db.conn_ref(), &ws_id, &query, "USD")
+            .map_err(|e| format!("Failed to build fact packet: {}", e))?;
     drop(db_guard);
 
     let (system_prompt, user_prompt) = crate::ai::GroundingEngine::build_prompts(&fact_packet);
 
     let llm_guard = state.llm_engine.lock().unwrap();
-    let llm = llm_guard.as_ref().ok_or("Local LLM engine uninitialized.")?;
+    let llm = llm_guard
+        .as_ref()
+        .ok_or("Local LLM engine uninitialized.")?;
 
     let raw_answer = llm
         .generate(&system_prompt, &user_prompt, None)
         .map_err(|e| format!("Local model inference failed: {}", e))?;
     drop(llm_guard);
 
-    Ok(crate::ai::GroundingEngine::validate_and_parse_response(&fact_packet, &raw_answer))
+    Ok(crate::ai::GroundingEngine::validate_and_parse_response(
+        &fact_packet,
+        &raw_answer,
+    ))
 }
 
 #[tauri::command]
@@ -854,7 +885,10 @@ pub fn classify_transaction(
     transaction_id: String,
 ) -> Result<crate::ai::CategoryProposal, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
@@ -870,7 +904,9 @@ pub fn classify_transaction(
         .map_err(|e| format!("Transaction not found: {}", e))?;
 
     let llm_guard = state.llm_engine.lock().unwrap();
-    let llm = llm_guard.as_ref().ok_or("Local LLM engine uninitialized.")?;
+    let llm = llm_guard
+        .as_ref()
+        .ok_or("Local LLM engine uninitialized.")?;
 
     let proposal = crate::ai::TransactionClassifier::classify_transaction(
         llm,
@@ -888,12 +924,12 @@ pub fn classify_transaction(
 }
 
 #[tauri::command]
-pub fn approve_category(
-    state: State<AppState>,
-    proposal_id: String,
-) -> Result<(), String> {
+pub fn approve_category(state: State<AppState>, proposal_id: String) -> Result<(), String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
@@ -905,10 +941,17 @@ pub fn approve_category(
     let audit_json = serde_json::json!({
         "proposal_id": proposal_id,
         "action": "APPROVE_CATEGORY"
-    }).to_string();
+    })
+    .to_string();
 
-    db.record_audit_event(&ws_id, "transaction_category", &proposal_id, "APPROVE_CATEGORY", &audit_json)
-        .map_err(|e| e.to_string())
+    db.record_audit_event(
+        &ws_id,
+        "transaction_category",
+        &proposal_id,
+        "APPROVE_CATEGORY",
+        &audit_json,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -926,8 +969,7 @@ pub fn search_workspace(
     let db_guard = state.db.lock().unwrap();
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
 
-    crate::ai::SearchEngine::search(db.conn_ref(), &ws_id, &query, 20)
-        .map_err(|e| e.to_string())
+    crate::ai::SearchEngine::search(db.conn_ref(), &ws_id, &query, 20).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -937,7 +979,10 @@ pub fn export_reconciliation_report(
     destination_path: Option<String>,
 ) -> Result<crate::export::ExportResult, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let mut db_guard = state.db.lock().unwrap();
@@ -946,7 +991,12 @@ pub fn export_reconciliation_report(
     let ext = match format.to_lowercase().as_str() {
         "pdf" => "pdf",
         "csv" => "csv",
-        other => return Err(format!("Unsupported format '{}', must be 'pdf' or 'csv'", other)),
+        other => {
+            return Err(format!(
+                "Unsupported format '{}', must be 'pdf' or 'csv'",
+                other
+            ))
+        }
     };
 
     let target_path = match destination_path {
@@ -956,7 +1006,9 @@ pub fn export_reconciliation_report(
                 .map(|d| d.data_local_dir().to_path_buf())
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            data_dir.join("exports").join(format!("opendeck_reconciliation_{}.{}", timestamp, ext))
+            data_dir
+                .join("exports")
+                .join(format!("opendeck_reconciliation_{}.{}", timestamp, ext))
         }
     };
 
@@ -983,19 +1035,24 @@ pub fn list_report_exports(
     let db_guard = state.db.lock().unwrap();
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
 
-    let mut stmt = db.conn_ref().prepare(
-        "SELECT id, file_path, export_format, record_snapshot_hash, created_at
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, file_path, export_format, record_snapshot_hash, created_at
          FROM report_exports
          WHERE workspace_id = ?1
          ORDER BY created_at DESC",
-    ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
     let mut rows = stmt.query([&ws_id]).map_err(|e| e.to_string())?;
     let mut results = Vec::new();
 
     while let Some(r) = rows.next().map_err(|e| e.to_string())? {
         let file_path: String = r.get(1).map_err(|e| e.to_string())?;
-        let file_size_bytes = std::fs::metadata(&file_path).map(|m| m.len() as usize).unwrap_or(0);
+        let file_size_bytes = std::fs::metadata(&file_path)
+            .map(|m| m.len() as usize)
+            .unwrap_or(0);
 
         results.push(crate::export::ExportResult {
             export_id: r.get(0).map_err(|e| e.to_string())?,
@@ -1018,17 +1075,23 @@ pub fn create_encrypted_backup(
     destination_path: Option<String>,
 ) -> Result<crate::security::BackupManifest, String> {
     let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is unlocked.")?
+        .clone();
     drop(ws_guard);
 
     let db_guard = state.db.lock().unwrap();
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
 
-    let ws_name: String = db.conn_ref().query_row(
-        "SELECT display_name FROM workspaces WHERE id = ?1",
-        [&ws_id],
-        |row| row.get(0),
-    ).unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
+    let ws_name: String = db
+        .conn_ref()
+        .query_row(
+            "SELECT display_name FROM workspaces WHERE id = ?1",
+            [&ws_id],
+            |row| row.get(0),
+        )
+        .unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
 
     let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
         .map(|dirs| dirs.data_local_dir().to_path_buf())
@@ -1041,7 +1104,9 @@ pub fn create_encrypted_backup(
         Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
         _ => {
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            data_dir.join("backups").join(format!("opendeck_backup_{}.opendeck", timestamp))
+            data_dir
+                .join("backups")
+                .join(format!("opendeck_backup_{}.opendeck", timestamp))
         }
     };
 
@@ -1052,16 +1117,24 @@ pub fn create_encrypted_backup(
         &ws_name,
         &target_archive,
         &passphrase,
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     let audit_json = serde_json::json!({
         "backup_archive": target_archive.to_string_lossy(),
         "total_raw_bytes": manifest.total_raw_bytes,
         "blob_count": manifest.blob_count,
         "db_sha256": manifest.db_sha256
-    }).to_string();
+    })
+    .to_string();
 
-    let _ = db.record_audit_event(&ws_id, "backup", &manifest.db_sha256, "CREATE_BACKUP", &audit_json);
+    let _ = db.record_audit_event(
+        &ws_id,
+        "backup",
+        &manifest.db_sha256,
+        "CREATE_BACKUP",
+        &audit_json,
+    );
 
     Ok(manifest)
 }
@@ -1087,5 +1160,6 @@ pub fn restore_encrypted_backup(
         &target_db,
         &target_blobs,
         &passphrase,
-    ).map_err(|e| e.to_string())
+    )
+    .map_err(|e| e.to_string())
 }

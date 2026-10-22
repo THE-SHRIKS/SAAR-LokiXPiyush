@@ -1,7 +1,7 @@
+use crate::supervisor::{SupervisorError, WorkerSupervisor};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use crate::supervisor::{SupervisorError, WorkerSupervisor};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcrLine {
@@ -53,8 +53,11 @@ pub struct OcrClient {
 
 impl OcrClient {
     pub fn new() -> Result<Self, OcrError> {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
-        
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+
         let standalone_candidates = [
             root.join("workers/ocr/dist/ocr_worker.exe"),
             root.join("workers/ocr/dist/ocr_worker"),
@@ -92,9 +95,9 @@ impl OcrClient {
 
     /// Executes OCR worker against a file path under supervision
     pub fn extract_document(&self, file_path: &Path) -> Result<OcrResponse, OcrError> {
-        let file_path_str = file_path.to_str().ok_or_else(|| {
-            OcrError::WorkerReported("Invalid file path encoding".to_string())
-        })?;
+        let file_path_str = file_path
+            .to_str()
+            .ok_or_else(|| OcrError::WorkerReported("Invalid file path encoding".to_string()))?;
 
         let (exec_cmd, args_vec) = if let Some(ref standalone) = self.standalone_bin {
             (
@@ -130,7 +133,9 @@ impl OcrClient {
         let resp: OcrResponse = serde_json::from_str(stdout_str.trim())?;
 
         if !status.success() || resp.status != "success" {
-            let err_msg = resp.error.unwrap_or_else(|| "Worker process failed".to_string());
+            let err_msg = resp
+                .error
+                .unwrap_or_else(|| "Worker process failed".to_string());
             return Err(OcrError::WorkerReported(err_msg));
         }
 
@@ -158,7 +163,10 @@ mod tests {
 
         let lines = &resp.pages[0].lines;
         let has_supplier = lines.iter().any(|l| l.text.contains("ACME Tech Services"));
-        assert!(has_supplier, "Digital text extraction must extract ACME Tech Services");
+        assert!(
+            has_supplier,
+            "Digital text extraction must extract ACME Tech Services"
+        );
     }
 
     #[test]
@@ -173,7 +181,11 @@ mod tests {
         assert!(res.is_err(), "Corrupted PDF must return error");
         match res.unwrap_err() {
             OcrError::WorkerReported(msg) => {
-                assert!(msg.contains("Failed to load") || msg.contains("PDFium") || msg.contains("format error"));
+                assert!(
+                    msg.contains("Failed to load")
+                        || msg.contains("PDFium")
+                        || msg.contains("format error")
+                );
             }
             other => panic!("Expected WorkerReported error, got {:?}", other),
         }

@@ -1,11 +1,11 @@
-pub mod pdf_writer;
 pub mod csv_exporter;
+pub mod pdf_writer;
 
-use std::fs;
-use std::path::Path;
 use anyhow::{anyhow, Result};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::export::csv_exporter::CsvExporter;
@@ -41,15 +41,17 @@ impl ExportService {
             .unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
 
         // Inflow / Outflow totals
-        let (total_income, total_expense): (i64, i64) = conn.query_row(
-            "SELECT 
+        let (total_income, total_expense): (i64, i64) = conn
+            .query_row(
+                "SELECT 
                 COALESCE(SUM(CASE WHEN amount_minor > 0 THEN amount_minor ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN amount_minor < 0 THEN ABS(amount_minor) ELSE 0 END), 0)
              FROM transactions
              WHERE workspace_id = ?1",
-            [workspace_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).unwrap_or((0, 0));
+                [workspace_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap_or((0, 0));
 
         let mut stmt = conn.prepare(
             "SELECT 
@@ -89,7 +91,13 @@ impl ExportService {
             });
         }
 
-        Ok((workspace_name, primary_currency, total_income, total_expense, rows))
+        Ok((
+            workspace_name,
+            primary_currency,
+            total_income,
+            total_expense,
+            rows,
+        ))
     }
 
     /// Generate and save export file to disk, recording audit log and report_exports entry
@@ -109,8 +117,18 @@ impl ExportService {
         let period = if rows.is_empty() {
             "All Time (Empty)".to_string()
         } else {
-            let min_date = rows.iter().map(|r| &r.date).min().cloned().unwrap_or_default();
-            let max_date = rows.iter().map(|r| &r.date).max().cloned().unwrap_or_default();
+            let min_date = rows
+                .iter()
+                .map(|r| &r.date)
+                .min()
+                .cloned()
+                .unwrap_or_default();
+            let max_date = rows
+                .iter()
+                .map(|r| &r.date)
+                .max()
+                .cloned()
+                .unwrap_or_default();
             format!("{min_date} to {max_date}")
         };
 
@@ -132,7 +150,11 @@ impl ExportService {
                 let (csv_str, csv_hash) = CsvExporter::export_reconciliation(&rows);
                 (csv_str.into_bytes(), csv_hash)
             }
-            other => return Err(anyhow!("Unsupported export format '{other}'. Must be 'pdf' or 'csv'.")),
+            other => {
+                return Err(anyhow!(
+                    "Unsupported export format '{other}'. Must be 'pdf' or 'csv'."
+                ))
+            }
         };
 
         // Ensure parent directory exists
@@ -180,12 +202,7 @@ impl ExportService {
             "INSERT INTO audit_log (
                 id, workspace_id, entity_type, entity_id, action, details_json, timestamp
              ) VALUES (?1, ?2, 'REPORT_EXPORT', ?3, 'EXPORT_GENERATED', ?4, datetime('now'))",
-            rusqlite::params![
-                &audit_id,
-                &workspace_id,
-                &export_id,
-                &details.to_string(),
-            ],
+            rusqlite::params![&audit_id, &workspace_id, &export_id, &details.to_string(),],
         )?;
 
         tx.commit()?;

@@ -1,8 +1,8 @@
+use crate::ai::llm_engine::LlmEngine;
+use crate::finance::money::Money;
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::ai::llm_engine::LlmEngine;
-use crate::finance::money::Money;
 
 pub const ALLOWED_CATEGORIES: &[&str] = &[
     "Software & Cloud Services",
@@ -75,13 +75,26 @@ impl TransactionClassifier {
         let parsed_val: Result<serde_json::Value, _> = serde_json::from_str(json_str);
         let (raw_cat, raw_conf, raw_rat) = match parsed_val {
             Ok(v) => (
-                v["category"].as_str().unwrap_or("General Operating Expense").to_string(),
+                v["category"]
+                    .as_str()
+                    .unwrap_or("General Operating Expense")
+                    .to_string(),
                 v["confidence"].as_f64().unwrap_or(0.85),
-                v["rationale"].as_str().unwrap_or("Model classified").to_string(),
+                v["rationale"]
+                    .as_str()
+                    .unwrap_or("Model classified")
+                    .to_string(),
             ),
             Err(e) => {
-                eprintln!("Classification JSON parse fallback (raw: {:?}): {}", raw_json, e);
-                ("General Operating Expense".to_string(), 0.50, "Parse fallback".to_string())
+                eprintln!(
+                    "Classification JSON parse fallback (raw: {:?}): {}",
+                    raw_json, e
+                );
+                (
+                    "General Operating Expense".to_string(),
+                    0.50,
+                    "Parse fallback".to_string(),
+                )
             }
         };
 
@@ -157,7 +170,10 @@ mod tests {
     fn test_parse_valid_json_classification() {
         let sample_json = r#"{"category": "Office Supplies & Stationery", "confidence": 0.95, "rationale": "Purchase of paper and pens"}"#;
         let parsed: serde_json::Value = serde_json::from_str(sample_json).unwrap();
-        assert_eq!(parsed["category"].as_str().unwrap(), "Office Supplies & Stationery");
+        assert_eq!(
+            parsed["category"].as_str().unwrap(),
+            "Office Supplies & Stationery"
+        );
         assert_eq!(parsed["confidence"].as_f64().unwrap(), 0.95);
     }
 }

@@ -34,7 +34,8 @@ impl CsvTransactionMapper {
             return Ok(0);
         }
 
-        let is_negative = cleaned.starts_with('-') || (cleaned.starts_with('(') && cleaned.ends_with(')'));
+        let is_negative =
+            cleaned.starts_with('-') || (cleaned.starts_with('(') && cleaned.ends_with(')'));
         let unsigned_str = cleaned
             .trim_start_matches('-')
             .trim_start_matches('+')
@@ -87,7 +88,11 @@ impl CsvTransactionMapper {
             }
         };
 
-        Ok(if is_negative { -minor_units } else { minor_units })
+        Ok(if is_negative {
+            -minor_units
+        } else {
+            minor_units
+        })
     }
 
     /// Normalizes dates into standard ISO 8601 (YYYY-MM-DD).
@@ -191,7 +196,9 @@ impl CsvTransactionMapper {
 
         // Guard against giant CSV row bombs
         if lines.len() - 1 > MAX_CSV_ROWS {
-            return Err(CsvError::RowLimitExceeded { limit: MAX_CSV_ROWS });
+            return Err(CsvError::RowLimitExceeded {
+                limit: MAX_CSV_ROWS,
+            });
         }
 
         let delimiter = Self::detect_delimiter(lines[0]);
@@ -211,7 +218,10 @@ impl CsvTransactionMapper {
             if date_col.is_none() && (h.contains("date") || h == "valuedt" || h == "txdate") {
                 date_col = Some(idx);
             } else if desc_col.is_none()
-                && (h.contains("description") || h.contains("narration") || h.contains("memo") || h.contains("details"))
+                && (h.contains("description")
+                    || h.contains("narration")
+                    || h.contains("memo")
+                    || h.contains("details"))
             {
                 desc_col = Some(idx);
             } else if h == "amount" || h == "txamount" {
@@ -259,7 +269,10 @@ impl CsvTransactionMapper {
             }
 
             let currency = if let Some(c_idx) = currency_col {
-                let c = fields.get(c_idx).map(|s| s.trim().to_uppercase()).unwrap_or_default();
+                let c = fields
+                    .get(c_idx)
+                    .map(|s| s.trim().to_uppercase())
+                    .unwrap_or_default();
                 if c.is_empty() {
                     default_currency.to_string()
                 } else {
@@ -279,8 +292,14 @@ impl CsvTransactionMapper {
                 })?
             } else {
                 // Split withdrawal / deposit columns
-                let w_str = withdrawal_col.and_then(|idx| fields.get(idx)).map(|s| s.as_str()).unwrap_or("0");
-                let d_str = deposit_col.and_then(|idx| fields.get(idx)).map(|s| s.as_str()).unwrap_or("0");
+                let w_str = withdrawal_col
+                    .and_then(|idx| fields.get(idx))
+                    .map(|s| s.as_str())
+                    .unwrap_or("0");
+                let d_str = deposit_col
+                    .and_then(|idx| fields.get(idx))
+                    .map(|s| s.as_str())
+                    .unwrap_or("0");
 
                 let w_minor = Self::parse_amount_minor(w_str, &currency).unwrap_or(0);
                 let d_minor = Self::parse_amount_minor(d_str, &currency).unwrap_or(0);
@@ -316,24 +335,54 @@ mod tests {
 
     #[test]
     fn test_parse_amount_minor_exact() {
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("120.00", "USD").unwrap(), 12000);
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("-45.50", "USD").unwrap(), -4550);
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("$5,000.00", "USD").unwrap(), 500000);
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("(90.00)", "USD").unwrap(), -9000);
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("1,00,000.00", "INR").unwrap(), 10000000);
-        assert_eq!(CsvTransactionMapper::parse_amount_minor("50000", "JPY").unwrap(), 50000);
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("120.00", "USD").unwrap(),
+            12000
+        );
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("-45.50", "USD").unwrap(),
+            -4550
+        );
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("$5,000.00", "USD").unwrap(),
+            500000
+        );
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("(90.00)", "USD").unwrap(),
+            -9000
+        );
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("1,00,000.00", "INR").unwrap(),
+            10000000
+        );
+        assert_eq!(
+            CsvTransactionMapper::parse_amount_minor("50000", "JPY").unwrap(),
+            50000
+        );
     }
 
     #[test]
     fn test_normalize_date() {
-        assert_eq!(CsvTransactionMapper::normalize_date("2026-09-01").unwrap(), "2026-09-01");
-        assert_eq!(CsvTransactionMapper::normalize_date("01/09/2026").unwrap(), "2026-09-01");
-        assert_eq!(CsvTransactionMapper::normalize_date("15-Sep-2026").unwrap(), "2026-09-15");
+        assert_eq!(
+            CsvTransactionMapper::normalize_date("2026-09-01").unwrap(),
+            "2026-09-01"
+        );
+        assert_eq!(
+            CsvTransactionMapper::normalize_date("01/09/2026").unwrap(),
+            "2026-09-01"
+        );
+        assert_eq!(
+            CsvTransactionMapper::normalize_date("15-Sep-2026").unwrap(),
+            "2026-09-15"
+        );
     }
 
     #[test]
     fn test_parse_us_bank_csv_fixture() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/statements/bank_us_sample.csv");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/statements/bank_us_sample.csv"
+        );
         let content = std::fs::read_to_string(path).unwrap();
         let txs = CsvTransactionMapper::parse_csv_content(&content, "USD").unwrap();
 
@@ -348,7 +397,10 @@ mod tests {
 
     #[test]
     fn test_parse_hdfc_bank_csv_fixture() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/statements/bank_hdfc_sample.csv");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/statements/bank_hdfc_sample.csv"
+        );
         let content = std::fs::read_to_string(path).unwrap();
         let txs = CsvTransactionMapper::parse_csv_content(&content, "INR").unwrap();
 
@@ -365,7 +417,10 @@ mod tests {
 
     #[test]
     fn test_csv_bomb_rejection() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/adversarial/bomb_50k_rows.csv");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/adversarial/bomb_50k_rows.csv"
+        );
         let content = std::fs::read_to_string(path).unwrap();
         let res = CsvTransactionMapper::parse_csv_content(&content, "USD");
         assert!(res.is_err(), "Must reject CSV bomb exceeding row limit");

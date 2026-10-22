@@ -76,13 +76,20 @@ impl ReconciliationMatcher {
 
                     let has_vendor_ref = !vendor_lower.is_empty()
                         && (desc_lower.contains(&vendor_lower)
-                            || vendor_lower.split_whitespace().any(|word| word.len() > 3 && desc_lower.contains(word)));
+                            || vendor_lower
+                                .split_whitespace()
+                                .any(|word| word.len() > 3 && desc_lower.contains(word)));
 
                     let has_inv_num_ref = !inv_num_lower.is_empty()
                         && (desc_lower.contains(&inv_num_lower)
-                            || tx.external_ref.as_ref().map(|r| r.to_lowercase().contains(&inv_num_lower)).unwrap_or(false));
+                            || tx
+                                .external_ref
+                                .as_ref()
+                                .map(|r| r.to_lowercase().contains(&inv_num_lower))
+                                .unwrap_or(false));
 
-                    let days_diff = calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
+                    let days_diff =
+                        calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
 
                     if (has_vendor_ref || has_inv_num_ref) && days_diff <= 45 {
                         links.push(ProposedLink {
@@ -96,7 +103,11 @@ impl ReconciliationMatcher {
                                 "Exact match on amount ({} {}) and reference ({}) within {} days.",
                                 inv.total_minor,
                                 inv.currency,
-                                if has_inv_num_ref { "invoice number" } else { "vendor name" },
+                                if has_inv_num_ref {
+                                    "invoice number"
+                                } else {
+                                    "vendor name"
+                                },
                                 days_diff
                             ),
                             status: "PROPOSED".to_string(),
@@ -122,7 +133,8 @@ impl ReconciliationMatcher {
                 }
 
                 if inv.currency == tx.currency && inv.total_minor == tx.amount_minor.abs() {
-                    let days_diff = calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
+                    let days_diff =
+                        calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
                     if days_diff <= 15 {
                         links.push(ProposedLink {
                             id: Uuid::new_v4().to_string(),
@@ -160,13 +172,19 @@ impl ReconciliationMatcher {
                 if inv.currency == tx.currency {
                     let desc_lower = tx.description.to_lowercase();
                     let vendor_lower = inv.vendor_name.to_lowercase();
-                    let inv_num_lower = inv.invoice_number.as_ref().map(|s| s.to_lowercase()).unwrap_or_default();
+                    let inv_num_lower = inv
+                        .invoice_number
+                        .as_ref()
+                        .map(|s| s.to_lowercase())
+                        .unwrap_or_default();
 
-                    let has_ref = (!inv_num_lower.is_empty() && desc_lower.contains(&inv_num_lower))
+                    let has_ref = (!inv_num_lower.is_empty()
+                        && desc_lower.contains(&inv_num_lower))
                         || (!vendor_lower.is_empty() && desc_lower.contains(&vendor_lower));
 
                     if has_ref {
-                        let days_diff = calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
+                        let days_diff =
+                            calculate_date_difference(inv.invoice_date.as_deref(), &tx.posted_date);
                         if days_diff <= 30 {
                             let diff_minor = tx.amount_minor.abs() - inv.total_minor;
                             links.push(ProposedLink {

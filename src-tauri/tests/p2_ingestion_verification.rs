@@ -53,7 +53,11 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     .expect("Failed to ingest gst_b2b_valid.pdf");
 
     let gst_doc_id = match gst_res {
-        IngestResult::Success { document_id, doc_type, .. } => {
+        IngestResult::Success {
+            document_id,
+            doc_type,
+            ..
+        } => {
             assert_eq!(doc_type, "PDF");
             document_id
         }
@@ -73,7 +77,7 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     assert_eq!(vendor, "ACME Tech Services Pvt Ltd");
     assert_eq!(inv_num, Some("ACME-2026-0915".to_string()));
     assert_eq!(total_minor, 11800000); // 118,000.00 INR = 11,800,000 minor units
-    assert_eq!(tax_minor, 1800000);   // 18,000.00 INR = 1,800,000 minor units
+    assert_eq!(tax_minor, 1800000); // 18,000.00 INR = 1,800,000 minor units
 
     // Verify document fields have bounding box coordinates for UI highlights
     let field_count: i64 = db
@@ -84,7 +88,10 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
             |r| r.get(0),
         )
         .unwrap();
-    assert!(field_count > 0, "Document fields must retain bounding box provenance");
+    assert!(
+        field_count > 0,
+        "Document fields must retain bounding box provenance"
+    );
 
     // -------------------------------------------------------------
     // Test 2: Scanned Thermal Receipt OCR Ingestion
@@ -102,7 +109,11 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     .expect("Failed to ingest thermal_receipt_scanned.png");
 
     let receipt_doc_id = match receipt_res {
-        IngestResult::Success { document_id, doc_type, .. } => {
+        IngestResult::Success {
+            document_id,
+            doc_type,
+            ..
+        } => {
             assert_eq!(doc_type, "PNG");
             document_id
         }
@@ -135,7 +146,11 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     .expect("Failed to ingest bank_us_sample.csv");
 
     match us_csv_res {
-        IngestResult::Success { doc_type, records_extracted, .. } => {
+        IngestResult::Success {
+            doc_type,
+            records_extracted,
+            ..
+        } => {
             assert_eq!(doc_type, "CSV");
             assert_eq!(records_extracted, 7);
         }
@@ -158,7 +173,11 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     .expect("Failed to ingest bank_hdfc_sample.csv");
 
     match hdfc_csv_res {
-        IngestResult::Success { doc_type, records_extracted, .. } => {
+        IngestResult::Success {
+            doc_type,
+            records_extracted,
+            ..
+        } => {
             assert_eq!(doc_type, "CSV");
             assert_eq!(records_extracted, 6);
         }
@@ -191,7 +210,10 @@ fn test_p2_full_document_and_statement_ingestion_pipeline() {
     .expect("Duplicate ingestion should succeed returning Duplicate variant");
 
     match dup_res {
-        IngestResult::Duplicate { existing_document_id, .. } => {
+        IngestResult::Duplicate {
+            existing_document_id,
+            ..
+        } => {
             assert_eq!(existing_document_id, gst_doc_id);
         }
         other => panic!("Expected IngestResult::Duplicate, got {:?}", other),

@@ -4,10 +4,11 @@
  *
  * Verifies P5-01 through P5-06 without mocks or cloud telemetry.
  */
-
 use opendeck_lib::db::Database;
 use opendeck_lib::finance::aggregates::FinancialAggregator;
-use opendeck_lib::finance::matching::{InvoiceCandidate, ReconciliationMatcher, TransactionCandidate};
+use opendeck_lib::finance::matching::{
+    InvoiceCandidate, ReconciliationMatcher, TransactionCandidate,
+};
 use opendeck_lib::finance::review::ReviewService;
 use opendeck_lib::ingestion::{DocumentOrchestrator, IngestResult, OcrClient};
 use opendeck_lib::security::{BlobStore, KeyDeriver};
@@ -55,7 +56,10 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
     // Step 1: P5-02 Evidence Inspector — Ingest Document & Verify Decrypted Preview
     // -------------------------------------------------------------
     let thermal_receipt_path = root.join("tests/fixtures/receipts/thermal_receipt_scanned.png");
-    assert!(thermal_receipt_path.exists(), "Receipt scan fixture must exist");
+    assert!(
+        thermal_receipt_path.exists(),
+        "Receipt scan fixture must exist"
+    );
 
     let ingest_res = DocumentOrchestrator::ingest_file(
         &mut db,
@@ -85,7 +89,11 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
 
     assert_eq!(doc_type, "PNG");
     let decrypted_bytes = blob_store.read_blob(&master_key, &sha256).unwrap();
-    assert_eq!(&decrypted_bytes[0..8], b"\x89PNG\r\n\x1a\n", "Must decrypt authentic PNG magic bytes");
+    assert_eq!(
+        &decrypted_bytes[0..8],
+        b"\x89PNG\r\n\x1a\n",
+        "Must decrypt authentic PNG magic bytes"
+    );
 
     // Verify normalized fields and bounding boxes exist for coordinate overlay
     let mut field_stmt = db
@@ -93,7 +101,9 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
         .prepare("SELECT field_key, normalized_value, confidence, bounding_box_json FROM document_fields WHERE document_id = ?1;")
         .unwrap();
     let fields: Vec<(String, String, f64, String)> = field_stmt
-        .query_map(params![doc_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+        .query_map(params![doc_id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })
         .unwrap()
         .map(|r| r.unwrap())
         .collect();
@@ -103,7 +113,10 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
     let total_field = fields.iter().find(|f| f.0 == "total_amount");
     assert!(total_field.is_some(), "Must extract total_amount field");
     let bbox_json = &total_field.unwrap().3;
-    assert!(bbox_json.starts_with('[') && bbox_json.ends_with(']'), "Bounding box must be valid JSON coordinate array");
+    assert!(
+        bbox_json.starts_with('[') && bbox_json.ends_with(']'),
+        "Bounding box must be valid JSON coordinate array"
+    );
 
     // -------------------------------------------------------------
     // Step 2: P5-03 Review Surface & Manual Audit Correction Flow
@@ -139,7 +152,11 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
     // Verify transaction was updated
     let updated_desc: String = db
         .conn_ref()
-        .query_row("SELECT description FROM transactions WHERE id = ?1;", params![tx_id], |r| r.get(0))
+        .query_row(
+            "SELECT description FROM transactions WHERE id = ?1;",
+            params![tx_id],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(updated_desc, corrected_desc);
 
@@ -154,8 +171,14 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
         .unwrap();
 
     assert_eq!(audit_action, "CORRECT_TRANSACTION");
-    assert!(audit_payload.contains(&original_desc), "Audit log must contain previous description");
-    assert!(audit_payload.contains(corrected_desc), "Audit log must contain corrected description");
+    assert!(
+        audit_payload.contains(&original_desc),
+        "Audit log must contain previous description"
+    );
+    assert!(
+        audit_payload.contains(corrected_desc),
+        "Audit log must contain corrected description"
+    );
 
     // -------------------------------------------------------------
     // Step 3: P5-03 Reconciliation Approval & Audit Recording
@@ -237,7 +260,11 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
     // Verify link status transitioned to APPROVED in DB
     let link_status: String = db
         .conn_ref()
-        .query_row("SELECT status FROM invoice_payment_links WHERE id = ?1;", params![test_link_id], |r| r.get(0))
+        .query_row(
+            "SELECT status FROM invoice_payment_links WHERE id = ?1;",
+            params![test_link_id],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(link_status, "APPROVED");
 
@@ -250,21 +277,33 @@ fn test_p5_editorial_interface_and_integrated_workflows() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(audit_count, 1, "Must have exactly 1 immutable audit entry for link approval");
+    assert_eq!(
+        audit_count, 1,
+        "Must have exactly 1 immutable audit entry for link approval"
+    );
 
     // -------------------------------------------------------------
     // Step 4: P5-04 Reports Page Aggregates & MoM Cash Flow
     // -------------------------------------------------------------
     let summary = FinancialAggregator::compute_summary(&transactions, "USD");
 
-    assert!(summary.total_income_minor > 0, "Total income must be positive");
-    assert!(summary.total_expense_minor > 0, "Total expenses must be positive");
+    assert!(
+        summary.total_income_minor > 0,
+        "Total income must be positive"
+    );
+    assert!(
+        summary.total_expense_minor > 0,
+        "Total expenses must be positive"
+    );
     assert_eq!(
         summary.net_savings_minor,
         summary.total_income_minor - summary.total_expense_minor,
         "Net savings must equal income minus expenses deterministically"
     );
-    assert!(!summary.monthly_breakdown.is_empty(), "Must contain monthly breakdown");
+    assert!(
+        !summary.monthly_breakdown.is_empty(),
+        "Must contain monthly breakdown"
+    );
 
     // Clean up temporary test files
     let _ = fs::remove_dir_all(temp_dir);

@@ -7,7 +7,9 @@ use opendeck_lib::db::Database;
 use opendeck_lib::export::ExportService;
 use opendeck_lib::security::{BackupError, BackupService, BlobStore, KeyDeriver, LogScrubber};
 
-fn setup_test_workspace(temp_dir: &PathBuf) -> (Database, BlobStore, String, PathBuf, PathBuf, [u8; 32]) {
+fn setup_test_workspace(
+    temp_dir: &PathBuf,
+) -> (Database, BlobStore, String, PathBuf, PathBuf, [u8; 32]) {
     let db_path = temp_dir.join("test_opendeck.db");
     let blob_dir = temp_dir.join("blobs");
     fs::create_dir_all(&blob_dir).expect("Create blob dir");
@@ -31,12 +33,15 @@ fn test_p6_01_source_traceable_csv_and_pdf_exports() {
     let temp_dir = std::env::temp_dir().join(format!("opendeck_p6_test_{}", Uuid::new_v4()));
     fs::create_dir_all(&temp_dir).expect("Create temp dir");
 
-    let (mut db, blob_store, ws_id, _db_path, _blob_dir, master_key) = setup_test_workspace(&temp_dir);
+    let (mut db, blob_store, ws_id, _db_path, _blob_dir, master_key) =
+        setup_test_workspace(&temp_dir);
 
     // 1. Populate sample transactions and invoice links
     let doc_id = Uuid::new_v4().to_string();
     let doc_bytes = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n";
-    let stored_blob = blob_store.store_blob(&master_key, doc_bytes).expect("Store blob");
+    let stored_blob = blob_store
+        .store_blob(&master_key, doc_bytes)
+        .expect("Store blob");
 
     db.conn_ref()
         .execute(
@@ -82,12 +87,9 @@ fn test_p6_01_source_traceable_csv_and_pdf_exports() {
 
     // 2. Test PDF Export
     let pdf_dest = temp_dir.join("reports").join("reconciliation_audit.pdf");
-    let pdf_result = ExportService::export_reconciliation(
-        db.connection_mut(),
-        &ws_id,
-        "pdf",
-        &pdf_dest,
-    ).expect("Generate PDF export");
+    let pdf_result =
+        ExportService::export_reconciliation(db.connection_mut(), &ws_id, "pdf", &pdf_dest)
+            .expect("Generate PDF export");
 
     assert_eq!(pdf_result.export_format, "PDF");
     assert_eq!(pdf_result.record_count, 3);
@@ -124,12 +126,9 @@ fn test_p6_01_source_traceable_csv_and_pdf_exports() {
 
     // 4. Test CSV Export
     let csv_dest = temp_dir.join("reports").join("reconciliation_audit.csv");
-    let csv_result = ExportService::export_reconciliation(
-        db.connection_mut(),
-        &ws_id,
-        "csv",
-        &csv_dest,
-    ).expect("Generate CSV export");
+    let csv_result =
+        ExportService::export_reconciliation(db.connection_mut(), &ws_id, "csv", &csv_dest)
+            .expect("Generate CSV export");
 
     assert_eq!(csv_result.export_format, "CSV");
     assert_eq!(csv_result.record_count, 3);
@@ -144,11 +143,14 @@ fn test_p6_01_source_traceable_csv_and_pdf_exports() {
     assert!(csv_content.contains("INV-2026-8899"));
 
     // 5. Verify database recorded export in report_exports and audit_log
-    let exports_count: i64 = db.conn_ref().query_row(
-        "SELECT COUNT(*) FROM report_exports WHERE workspace_id = ?1",
-        [&ws_id],
-        |row| row.get(0),
-    ).expect("Query export count");
+    let exports_count: i64 = db
+        .conn_ref()
+        .query_row(
+            "SELECT COUNT(*) FROM report_exports WHERE workspace_id = ?1",
+            [&ws_id],
+            |row| row.get(0),
+        )
+        .expect("Query export count");
     assert_eq!(exports_count, 2);
 
     let audit_count: i64 = db.conn_ref().query_row(
@@ -171,7 +173,9 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
 
     // 1. Create realistic blobs and database records in source workspace
     let sample_invoice_bytes = b"%PDF-1.4\n% Real Financial Invoice Payload\n2500.00 USD\n";
-    let stored_blob = blob_store.store_blob(&master_key, sample_invoice_bytes).expect("Store blob");
+    let stored_blob = blob_store
+        .store_blob(&master_key, sample_invoice_bytes)
+        .expect("Store blob");
 
     let doc_id = Uuid::new_v4().to_string();
     db.conn_ref().execute(
@@ -193,7 +197,9 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
     ).expect("Insert tx");
 
     // Checkpoint SQLite so all pages are in db_path
-    let _ = db.conn_ref().execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    let _ = db
+        .conn_ref()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
 
     // 2. Create encrypted .opendeck backup
     let archive_path = base_temp.join("backups").join("vault_2026.opendeck");
@@ -206,7 +212,8 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
         "THE SHRIKS Phase 6 Corp",
         &archive_path,
         correct_passphrase,
-    ).expect("Create backup");
+    )
+    .expect("Create backup");
 
     assert!(archive_path.exists());
     assert_eq!(manifest.blob_count, 1);
@@ -238,7 +245,10 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
     }
 
     // Verify target directory was NOT created or contaminated
-    assert!(!target_db.exists(), "Target DB must not exist after failed auth");
+    assert!(
+        !target_db.exists(),
+        "Target DB must not exist after failed auth"
+    );
 
     // 4. Test tamper detection (bit flip in ciphertext)
     let mut tampered_raw = archive_raw.clone();
@@ -257,16 +267,16 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
         Err(BackupError::AuthenticationFailed) => {
             // Tamper detected!
         }
-        other => panic!("Expected AuthenticationFailed on tampered ciphertext, got: {:?}", other),
+        other => panic!(
+            "Expected AuthenticationFailed on tampered ciphertext, got: {:?}",
+            other
+        ),
     }
 
     // 5. Test successful restore into fresh target profile
-    let restored_manifest = BackupService::restore_backup(
-        &archive_path,
-        &target_db,
-        &target_blobs,
-        correct_passphrase,
-    ).expect("Restore backup with correct key");
+    let restored_manifest =
+        BackupService::restore_backup(&archive_path, &target_db, &target_blobs, correct_passphrase)
+            .expect("Restore backup with correct key");
 
     assert_eq!(restored_manifest.db_sha256, manifest.db_sha256);
     assert_eq!(restored_manifest.blob_count, 1);
@@ -274,23 +284,27 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
 
     // 6. Verify restored database integrity and exact rows
     let restored_db = Database::open(&target_db).expect("Open restored database");
-    let integrity: String = restored_db.conn_ref().query_row(
-        "PRAGMA integrity_check;",
-        [],
-        |row| row.get(0),
-    ).expect("Integrity check");
+    let integrity: String = restored_db
+        .conn_ref()
+        .query_row("PRAGMA integrity_check;", [], |row| row.get(0))
+        .expect("Integrity check");
     assert_eq!(integrity, "ok");
 
-    let restored_tx_desc: String = restored_db.conn_ref().query_row(
-        "SELECT description FROM transactions WHERE id = ?1",
-        [&tx_id],
-        |row| row.get(0),
-    ).expect("Query restored tx");
+    let restored_tx_desc: String = restored_db
+        .conn_ref()
+        .query_row(
+            "SELECT description FROM transactions WHERE id = ?1",
+            [&tx_id],
+            |row| row.get(0),
+        )
+        .expect("Query restored tx");
     assert_eq!(restored_tx_desc, "Audited Enterprise Wire");
 
     // 7. Verify restored blob store can read and decrypt the original blob
     let restored_blob_store = BlobStore::new(&target_blobs).expect("Open restored blob store");
-    let decrypted_bytes = restored_blob_store.read_blob(&master_key, &stored_blob.sha256_hex).expect("Retrieve restored blob");
+    let decrypted_bytes = restored_blob_store
+        .read_blob(&master_key, &stored_blob.sha256_hex)
+        .expect("Retrieve restored blob");
     assert_eq!(decrypted_bytes.as_slice(), sample_invoice_bytes);
 
     let _ = fs::remove_dir_all(base_temp);
@@ -346,21 +360,30 @@ fn test_p6_03_log_scrubber_and_system_recovery() {
     drop(db);
     let restarted_db = Database::open(&db_path).expect("Reopen db");
 
-    let status_1: String = restarted_db.conn_ref().query_row(
-        "SELECT status FROM documents WHERE id = ?1",
-        [&doc_in_flight_1],
-        |r| r.get(0),
-    ).expect("Query status 1");
-    let status_2: String = restarted_db.conn_ref().query_row(
-        "SELECT status FROM documents WHERE id = ?1",
-        [&doc_in_flight_2],
-        |r| r.get(0),
-    ).expect("Query status 2");
-    let status_3: String = restarted_db.conn_ref().query_row(
-        "SELECT status FROM documents WHERE id = ?1",
-        [&doc_completed],
-        |r| r.get(0),
-    ).expect("Query status 3");
+    let status_1: String = restarted_db
+        .conn_ref()
+        .query_row(
+            "SELECT status FROM documents WHERE id = ?1",
+            [&doc_in_flight_1],
+            |r| r.get(0),
+        )
+        .expect("Query status 1");
+    let status_2: String = restarted_db
+        .conn_ref()
+        .query_row(
+            "SELECT status FROM documents WHERE id = ?1",
+            [&doc_in_flight_2],
+            |r| r.get(0),
+        )
+        .expect("Query status 2");
+    let status_3: String = restarted_db
+        .conn_ref()
+        .query_row(
+            "SELECT status FROM documents WHERE id = ?1",
+            [&doc_completed],
+            |r| r.get(0),
+        )
+        .expect("Query status 3");
 
     // Interrupted documents recovered to FAILED; completed documents remain PARSED
     assert_eq!(status_1, "FAILED");

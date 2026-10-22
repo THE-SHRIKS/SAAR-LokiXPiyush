@@ -61,11 +61,8 @@ fn test_p1_02_workspace_key_lifecycle_and_disk_inspection() {
             .expect("Failed to read auth params");
 
         // Attempt unlock with wrong passphrase
-        let wrong_unlock_result = KeyDeriver::verify_passphrase(
-            "IncorrectPassphraseAttempt!99",
-            &salt,
-            &expected_token,
-        );
+        let wrong_unlock_result =
+            KeyDeriver::verify_passphrase("IncorrectPassphraseAttempt!99", &salt, &expected_token);
         assert!(
             wrong_unlock_result.is_err(),
             "Wrong passphrase MUST be rejected"
@@ -214,8 +211,7 @@ fn test_p1_05_offline_configuration_and_csp_audit() {
     // 3. Audit capabilities permissions
     let cap_str =
         fs::read_to_string(&capabilities_path).expect("Failed to read default.json capability");
-    let cap: serde_json::Value =
-        serde_json::from_str(&cap_str).expect("Invalid capability JSON");
+    let cap: serde_json::Value = serde_json::from_str(&cap_str).expect("Invalid capability JSON");
 
     let perms = cap["permissions"]
         .as_array()

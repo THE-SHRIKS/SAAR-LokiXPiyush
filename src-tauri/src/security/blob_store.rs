@@ -1,6 +1,3 @@
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
 use aes_gcm::{
     aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
@@ -8,6 +5,9 @@ use aes_gcm::{
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
 
@@ -207,7 +207,7 @@ impl BlobStore {
         extension: &str,
     ) -> Result<TempPlaintextGuard, BlobError> {
         let plaintext = self.read_blob(master_key, sha256_hex)?;
-        
+
         let temp_dir = self.root_dir.join(".tmp_safe");
         fs::create_dir_all(&temp_dir)?;
 
@@ -282,11 +282,17 @@ mod tests {
 
         // 1. Store blob
         let res = store.store_blob(&master_key, original_data).unwrap();
-        assert!(!res.is_duplicate, "First store should not be marked duplicate");
+        assert!(
+            !res.is_duplicate,
+            "First store should not be marked duplicate"
+        );
 
         // 2. Read blob
         let decrypted = store.read_blob(&master_key, &res.sha256_hex).unwrap();
-        assert_eq!(&*decrypted, original_data, "Decrypted data must match original");
+        assert_eq!(
+            &*decrypted, original_data,
+            "Decrypted data must match original"
+        );
 
         // 3. Clean up
         let _ = fs::remove_dir_all(&temp_dir);
@@ -303,7 +309,10 @@ mod tests {
         assert!(!res1.is_duplicate);
 
         let res2 = store.store_blob(&master_key, data).unwrap();
-        assert!(res2.is_duplicate, "Second store of identical content must report duplicate");
+        assert!(
+            res2.is_duplicate,
+            "Second store of identical content must report duplicate"
+        );
         assert_eq!(res1.sha256_hex, res2.sha256_hex);
 
         let _ = fs::remove_dir_all(&temp_dir);
@@ -328,7 +337,10 @@ mod tests {
 
         // Attempting to read tampered blob MUST fail with decryption error
         let read_result = store.read_blob(&master_key, &res.sha256_hex);
-        assert!(read_result.is_err(), "Decryption must fail when ciphertext is tampered with");
+        assert!(
+            read_result.is_err(),
+            "Decryption must fail when ciphertext is tampered with"
+        );
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
@@ -344,7 +356,10 @@ mod tests {
         let res = store.store_blob(&correct_key, data).unwrap();
 
         let read_result = store.read_blob(&wrong_key, &res.sha256_hex);
-        assert!(read_result.is_err(), "Decryption must fail when wrong key is provided");
+        assert!(
+            read_result.is_err(),
+            "Decryption must fail when wrong key is provided"
+        );
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
@@ -360,14 +375,22 @@ mod tests {
 
         let temp_path;
         {
-            let guard = store.create_temp_plaintext(&master_key, &res.sha256_hex, "png").unwrap();
+            let guard = store
+                .create_temp_plaintext(&master_key, &res.sha256_hex, "png")
+                .unwrap();
             temp_path = guard.path().to_path_buf();
-            assert!(temp_path.exists(), "Temp plaintext file must exist while guard is in scope");
+            assert!(
+                temp_path.exists(),
+                "Temp plaintext file must exist while guard is in scope"
+            );
             let read_back = fs::read(&temp_path).unwrap();
             assert_eq!(&read_back[..], data);
         } // guard dropped here
 
-        assert!(!temp_path.exists(), "Temp plaintext file MUST be removed on drop");
+        assert!(
+            !temp_path.exists(),
+            "Temp plaintext file MUST be removed on drop"
+        );
 
         let _ = fs::remove_dir_all(&temp_dir);
     }

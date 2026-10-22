@@ -1,6 +1,6 @@
+use crate::finance::matching::TransactionCandidate;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use crate::finance::matching::TransactionCandidate;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

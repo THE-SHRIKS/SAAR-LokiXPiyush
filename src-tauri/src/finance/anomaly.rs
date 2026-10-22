@@ -32,9 +32,14 @@ impl AnomalyDetector {
                     && inv1.vendor_name.to_lowercase() == inv2.vendor_name.to_lowercase();
 
                 // If same vendor and exact same amount within 3 days: suspected duplicate billing
-                let days_diff = calculate_date_difference(inv1.invoice_date.as_deref(), inv2.invoice_date.as_deref().unwrap_or(""));
-                let is_same_vendor = inv1.vendor_name.to_lowercase() == inv2.vendor_name.to_lowercase();
-                let is_same_amount = inv1.total_minor == inv2.total_minor && inv1.currency == inv2.currency;
+                let days_diff = calculate_date_difference(
+                    inv1.invoice_date.as_deref(),
+                    inv2.invoice_date.as_deref().unwrap_or(""),
+                );
+                let is_same_vendor =
+                    inv1.vendor_name.to_lowercase() == inv2.vendor_name.to_lowercase();
+                let is_same_amount =
+                    inv1.total_minor == inv2.total_minor && inv1.currency == inv2.currency;
 
                 if has_same_inv_num {
                     anomalies.push(FinancialAnomaly {
@@ -166,6 +171,9 @@ mod tests {
         ];
 
         let anomalies = AnomalyDetector::detect_anomalies(&invoices, &[]);
-        assert!(anomalies.is_empty(), "Monthly recurring charges must not be falsely flagged as duplicates");
+        assert!(
+            anomalies.is_empty(),
+            "Monthly recurring charges must not be falsely flagged as duplicates"
+        );
     }
 }

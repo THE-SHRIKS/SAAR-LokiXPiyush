@@ -157,11 +157,14 @@ export const App: React.FC = () => {
     setExportFeedback(null);
     try {
       const res = await OpenDeckApi.exportReconciliationReport(format);
-      setExportFeedback(`Export generated successfully: ${res.filePath} (${res.recordCount} records, Snapshot SHA-256: ${res.recordSnapshotHash.slice(0, 16)}...)`);
+      setExportFeedback(
+        `Export generated successfully: ${res.filePath} (${res.recordCount} records, Snapshot SHA-256: ${res.recordSnapshotHash.slice(0, 16)}...)`
+      );
       const exports = await OpenDeckApi.listReportExports();
       setReportExports(exports);
-    } catch (err: any) {
-      setExportFeedback(`Export error: ${err?.message || err}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setExportFeedback(`Export error: ${msg}`);
     } finally {
       setIsExporting(false);
     }
@@ -177,10 +180,13 @@ export const App: React.FC = () => {
     setBackupFeedback(null);
     try {
       const manifest = await OpenDeckApi.createEncryptedBackup(backupPassphrase);
-      setBackupFeedback(`Encrypted backup created successfully! Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}..., Size: ${manifest.totalRawBytes} bytes`);
+      setBackupFeedback(
+        `Encrypted backup created successfully! Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}..., Size: ${manifest.totalRawBytes} bytes`
+      );
       setBackupPassphrase("");
-    } catch (err: any) {
-      setBackupFeedback(`Backup failed: ${err?.message || err}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBackupFeedback(`Backup failed: ${msg}`);
     } finally {
       setIsBackupLoading(false);
     }
@@ -195,11 +201,17 @@ export const App: React.FC = () => {
     setIsRestoreLoading(true);
     setRestoreFeedback(null);
     try {
-      const manifest = await OpenDeckApi.restoreEncryptedBackup(restoreArchivePath, restorePassphrase);
-      setRestoreFeedback(`Workspace restored successfully! App: ${manifest.appVersion}, Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}...`);
+      const manifest = await OpenDeckApi.restoreEncryptedBackup(
+        restoreArchivePath,
+        restorePassphrase
+      );
+      setRestoreFeedback(
+        `Workspace restored successfully! App: ${manifest.appVersion}, Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}...`
+      );
       await refreshData();
-    } catch (err: any) {
-      setRestoreFeedback(`Restore failed: ${err?.message || err}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setRestoreFeedback(`Restore failed: ${msg}`);
     } finally {
       setIsRestoreLoading(false);
     }
@@ -325,7 +337,9 @@ export const App: React.FC = () => {
     if (!correctingTx || !correctionInput.trim()) return;
     try {
       await OpenDeckApi.correctTransaction(correctingTx.id, correctionInput.trim());
-      setReviewMessage(`Transaction ${correctingTx.id.substring(0, 8)} corrected to: "${correctionInput.trim()}"`);
+      setReviewMessage(
+        `Transaction ${correctingTx.id.substring(0, 8)} corrected to: "${correctionInput.trim()}"`
+      );
       setCorrectingTx(null);
       setCorrectionInput("");
       await refreshData();
@@ -795,34 +809,35 @@ export const App: React.FC = () => {
                                     alt="Document"
                                     style={{ width: "100%", display: "block" }}
                                   />
-                                  {activeField && (() => {
-                                    try {
-                                      const box = JSON.parse(activeField.boundingBoxJson);
-                                      if (
-                                        Array.isArray(box) &&
-                                        box.length >= 4 &&
-                                        typeof box[0] === "number"
-                                      ) {
-                                        return (
-                                          <div
-                                            className="bbox-overlay-highlight"
-                                            style={{
-                                              position: "absolute",
-                                              left: `${box[0]}px`,
-                                              top: `${box[1]}px`,
-                                              width: `${Math.max(box[2] - box[0], 20)}px`,
-                                              height: `${Math.max(box[3] - box[1], 15)}px`,
-                                              border: "2px solid #f59e0b",
-                                              backgroundColor: "rgba(245, 158, 11, 0.25)",
-                                              pointerEvents: "none",
-                                            }}
-                                          />
-                                        );
+                                  {activeField &&
+                                    (() => {
+                                      try {
+                                        const box = JSON.parse(activeField.boundingBoxJson);
+                                        if (
+                                          Array.isArray(box) &&
+                                          box.length >= 4 &&
+                                          typeof box[0] === "number"
+                                        ) {
+                                          return (
+                                            <div
+                                              className="bbox-overlay-highlight"
+                                              style={{
+                                                position: "absolute",
+                                                left: `${box[0]}px`,
+                                                top: `${box[1]}px`,
+                                                width: `${Math.max(box[2] - box[0], 20)}px`,
+                                                height: `${Math.max(box[3] - box[1], 15)}px`,
+                                                border: "2px solid #f59e0b",
+                                                backgroundColor: "rgba(245, 158, 11, 0.25)",
+                                                pointerEvents: "none",
+                                              }}
+                                            />
+                                          );
+                                        }
+                                      } catch {
+                                        return null;
                                       }
-                                    } catch {
-                                      return null;
-                                    }
-                                  })()}
+                                    })()}
                                 </div>
                               </div>
                             )}
@@ -839,7 +854,9 @@ export const App: React.FC = () => {
                                     border: "1px solid var(--border-subtle)",
                                   }}
                                 >
-                                  <p className="text-small text-muted">Digital PDF Decrypted & Ready.</p>
+                                  <p className="text-small text-muted">
+                                    Digital PDF Decrypted & Ready.
+                                  </p>
                                 </object>
                               </div>
                             )}
@@ -1026,7 +1043,9 @@ export const App: React.FC = () => {
                                 )}
                               </td>
                               <td>
-                                <span className={`status-pill status-${tx.reviewState.toLowerCase()}`}>
+                                <span
+                                  className={`status-pill status-${tx.reviewState.toLowerCase()}`}
+                                >
                                   {tx.reviewState}
                                 </span>
                               </td>
@@ -1042,7 +1061,9 @@ export const App: React.FC = () => {
                                           onClick={() => handleApproveCategory(tx.id)}
                                         >
                                           <Check size={12} />
-                                          <span>Approve ({Math.round(proposal.confidenceScore * 100)}%)</span>
+                                          <span>
+                                            Approve ({Math.round(proposal.confidenceScore * 100)}%)
+                                          </span>
                                         </button>
                                       </div>
                                     )
@@ -1052,8 +1073,15 @@ export const App: React.FC = () => {
                                       onClick={() => handleClassifyTransaction(tx.id)}
                                       disabled={classifyingTxId === tx.id}
                                     >
-                                      <Sparkles size={12} className={classifyingTxId === tx.id ? "spin" : ""} />
-                                      <span>{classifyingTxId === tx.id ? "Classifying..." : "Auto-Classify"}</span>
+                                      <Sparkles
+                                        size={12}
+                                        className={classifyingTxId === tx.id ? "spin" : ""}
+                                      />
+                                      <span>
+                                        {classifyingTxId === tx.id
+                                          ? "Classifying..."
+                                          : "Auto-Classify"}
+                                      </span>
                                     </button>
                                   )}
                                   <button
@@ -1116,7 +1144,10 @@ export const App: React.FC = () => {
                       </div>
                       <div className="anomaly-cards">
                         {anomalies.map((anom) => (
-                          <div key={anom.id} className={`anomaly-card severity-${anom.severity.toLowerCase()}`}>
+                          <div
+                            key={anom.id}
+                            className={`anomaly-card severity-${anom.severity.toLowerCase()}`}
+                          >
                             <div className="anomaly-meta">
                               <span className="badge-severity">{anom.severity}</span>
                               <span className="font-mono text-small">{anom.anomalyType}</span>
@@ -1145,7 +1176,9 @@ export const App: React.FC = () => {
                           <div key={link.id} className="link-card">
                             <div className="link-card-header">
                               <div className="match-badges">
-                                <span className={`badge-match badge-${link.matchType.toLowerCase()}`}>
+                                <span
+                                  className={`badge-match badge-${link.matchType.toLowerCase()}`}
+                                >
                                   {link.matchType}
                                 </span>
                                 <span className="badge-score">
@@ -1260,7 +1293,9 @@ export const App: React.FC = () => {
                       disabled={isExporting}
                     >
                       <Download size={14} />
-                      <span>{isExporting ? "Generating PDF..." : "Export Source-Traceable PDF"}</span>
+                      <span>
+                        {isExporting ? "Generating PDF..." : "Export Source-Traceable PDF"}
+                      </span>
                     </button>
                     <button
                       className="btn-secondary"
@@ -1415,7 +1450,7 @@ export const App: React.FC = () => {
 
                   <div className="breakdown-section">
                     <h5>Monthly Breakdown</h5>
-                    {(!financialSummary || financialSummary.monthlyBreakdown.length === 0) ? (
+                    {!financialSummary || financialSummary.monthlyBreakdown.length === 0 ? (
                       <p className="text-muted text-small">No monthly records to display.</p>
                     ) : (
                       <table className="data-table">
@@ -1507,7 +1542,8 @@ export const App: React.FC = () => {
                     <div>
                       <h4>Local Grounded Financial Intelligence</h4>
                       <span className="text-small text-muted">
-                        Air-gapped Qwen2.5-3B • Fact-Packet Provenance Citations • Anti-Hallucination Guard
+                        Air-gapped Qwen2.5-3B • Fact-Packet Provenance Citations •
+                        Anti-Hallucination Guard
                       </span>
                     </div>
                     <div className="chat-model-badge">
@@ -1683,7 +1719,9 @@ export const App: React.FC = () => {
                       </div>
                       <div className="spec-row">
                         <span className="spec-label">App Version</span>
-                        <span className="spec-val">v{status?.appVersion || "0.1.0"} ({status?.platform || "linux"})</span>
+                        <span className="spec-val">
+                          v{status?.appVersion || "0.1.0"} ({status?.platform || "linux"})
+                        </span>
                       </div>
                       <div className="spec-row">
                         <span className="spec-label">OCR Engine</span>
@@ -1695,7 +1733,9 @@ export const App: React.FC = () => {
                       </div>
                       <div className="spec-row">
                         <span className="spec-label">Local LLM</span>
-                        <span className="spec-val">{status?.llmModelId || "qwen-2.5-3b-instruct-q3_k_m"}</span>
+                        <span className="spec-val">
+                          {status?.llmModelId || "qwen-2.5-3b-instruct-q3_k_m"}
+                        </span>
                       </div>
                     </div>
 
@@ -1705,12 +1745,17 @@ export const App: React.FC = () => {
                         <span>Encrypted Offline Backup & Disaster Recovery (.opendeck)</span>
                       </div>
                       <p className="text-small text-muted" style={{ marginBottom: 14 }}>
-                        Create an authenticated, tamper-evident AES-256-GCM archive containing the SQLite database and encrypted blob store. Protected by Argon2id memory-hard key derivation.
+                        Create an authenticated, tamper-evident AES-256-GCM archive containing the
+                        SQLite database and encrypted blob store. Protected by Argon2id memory-hard
+                        key derivation.
                       </p>
 
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                         {/* Create Backup */}
-                        <form onSubmit={handleCreateBackup} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <form
+                          onSubmit={handleCreateBackup}
+                          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                        >
                           <h6>Create New Encrypted Backup Archive</h6>
                           <input
                             type="password"
@@ -1726,7 +1771,11 @@ export const App: React.FC = () => {
                             disabled={isBackupLoading || !backupPassphrase.trim()}
                           >
                             <Archive size={14} />
-                            <span>{isBackupLoading ? "Encrypting Archive..." : "Create Encrypted Backup"}</span>
+                            <span>
+                              {isBackupLoading
+                                ? "Encrypting Archive..."
+                                : "Create Encrypted Backup"}
+                            </span>
                           </button>
                           {backupFeedback && (
                             <span
@@ -1742,7 +1791,10 @@ export const App: React.FC = () => {
                         </form>
 
                         {/* Restore Backup */}
-                        <form onSubmit={handleRestoreBackup} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <form
+                          onSubmit={handleRestoreBackup}
+                          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                        >
                           <h6>Restore from Backup Archive</h6>
                           <input
                             type="text"
@@ -1770,7 +1822,9 @@ export const App: React.FC = () => {
                             }
                           >
                             <FolderDown size={14} />
-                            <span>{isRestoreLoading ? "Decrypting & Restoring..." : "Restore Workspace"}</span>
+                            <span>
+                              {isRestoreLoading ? "Decrypting & Restoring..." : "Restore Workspace"}
+                            </span>
                           </button>
                           {restoreFeedback && (
                             <span

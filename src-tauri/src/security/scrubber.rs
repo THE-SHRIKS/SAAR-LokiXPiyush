@@ -83,7 +83,9 @@ impl LogScrubber {
         let s6 = p.user_path_unix.replace_all(&s5, "/home/[REDACTED_USER]/");
 
         // 7. Scrub Windows user paths
-        let s7 = p.user_path_win.replace_all(&s6, "C:\\Users\\[REDACTED_USER]\\");
+        let s7 = p
+            .user_path_win
+            .replace_all(&s6, "C:\\Users\\[REDACTED_USER]\\");
 
         s7.to_string()
     }

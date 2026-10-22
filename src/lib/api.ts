@@ -141,7 +141,10 @@ export class OpenDeckApi {
   /**
    * Rejects a proposed match link.
    */
-  static async rejectReconciliationLink(linkId: string, reason = "Rejected by user"): Promise<void> {
+  static async rejectReconciliationLink(
+    linkId: string,
+    reason = "Rejected by user"
+  ): Promise<void> {
     return await invoke<void>("reject_reconciliation_link", { linkId, reason });
   }
 

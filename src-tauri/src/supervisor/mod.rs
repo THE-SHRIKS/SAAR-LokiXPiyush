@@ -1,6 +1,6 @@
+use std::net::TcpListener;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::Duration;
-use std::net::TcpListener;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SupervisorError {
@@ -104,10 +104,7 @@ impl WorkerSupervisor {
     }
 
     /// Spawns a supervised worker command with stdin/stdout piped and network egress strictly prohibited
-    pub fn spawn_worker(
-        command: &str,
-        args: &[&str],
-    ) -> Result<ChildGuard, SupervisorError> {
+    pub fn spawn_worker(command: &str, args: &[&str]) -> Result<ChildGuard, SupervisorError> {
         Self::validate_args(args)?;
 
         let child = Command::new(command)
@@ -138,12 +135,20 @@ mod tests {
     fn test_supervisor_rejects_network_args() {
         let bad_args = vec!["--input", "https://evil.com/payload.pdf"];
         let res = WorkerSupervisor::validate_args(&bad_args);
-        assert!(res.is_err(), "Must reject arguments containing network URLs");
+        assert!(
+            res.is_err(),
+            "Must reject arguments containing network URLs"
+        );
     }
 
     #[test]
     fn test_supervisor_allows_local_args() {
-        let good_args = vec!["--model", "/home/theshriksloki/OpenDeck/models/weights/model.gguf", "--temp", "0.0"];
+        let good_args = vec![
+            "--model",
+            "/home/theshriksloki/OpenDeck/models/weights/model.gguf",
+            "--temp",
+            "0.0",
+        ];
         let res = WorkerSupervisor::validate_args(&good_args);
         assert!(res.is_ok(), "Must allow clean local arguments");
     }
@@ -157,14 +162,20 @@ mod tests {
         #[cfg(target_os = "linux")]
         {
             let proc_path = std::path::PathBuf::from(format!("/proc/{}", pid));
-            assert!(proc_path.exists(), "Spawned child process should be alive in /proc");
+            assert!(
+                proc_path.exists(),
+                "Spawned child process should be alive in /proc"
+            );
 
             // Drop guard -> must kill child
             drop(guard);
 
             // Verify process is terminated
             std::thread::sleep(Duration::from_millis(50));
-            assert!(!proc_path.exists(), "Child process must be dead after ChildGuard is dropped");
+            assert!(
+                !proc_path.exists(),
+                "Child process must be dead after ChildGuard is dropped"
+            );
         }
 
         #[cfg(not(target_os = "linux"))]

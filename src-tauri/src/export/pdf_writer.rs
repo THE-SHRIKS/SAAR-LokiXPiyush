@@ -42,19 +42,23 @@ impl PdfDocument {
     }
 
     pub fn set_font(&mut self, font_tag: &str, size: f32) {
-        self.current_page_stream.push_str(&format!("BT /{font_tag} {size:.1} Tf ET\n"));
+        self.current_page_stream
+            .push_str(&format!("BT /{font_tag} {size:.1} Tf ET\n"));
     }
 
     pub fn set_fill_color(&mut self, r: f32, g: f32, b: f32) {
-        self.current_page_stream.push_str(&format!("{r:.3} {g:.3} {b:.3} rg\n"));
+        self.current_page_stream
+            .push_str(&format!("{r:.3} {g:.3} {b:.3} rg\n"));
     }
 
     pub fn set_stroke_color(&mut self, r: f32, g: f32, b: f32) {
-        self.current_page_stream.push_str(&format!("{r:.3} {g:.3} {b:.3} RG\n"));
+        self.current_page_stream
+            .push_str(&format!("{r:.3} {g:.3} {b:.3} RG\n"));
     }
 
     pub fn set_line_width(&mut self, width: f32) {
-        self.current_page_stream.push_str(&format!("{width:.2} w\n"));
+        self.current_page_stream
+            .push_str(&format!("{width:.2} w\n"));
     }
 
     pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, fill: bool, stroke: bool) {
@@ -64,11 +68,13 @@ impl PdfDocument {
             (false, true) => "s",
             (false, false) => "n",
         };
-        self.current_page_stream.push_str(&format!("{x:.1} {y:.1} {w:.1} {h:.1} re {op}\n"));
+        self.current_page_stream
+            .push_str(&format!("{x:.1} {y:.1} {w:.1} {h:.1} re {op}\n"));
     }
 
     pub fn draw_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
-        self.current_page_stream.push_str(&format!("{x1:.1} {y1:.1} m {x2:.1} {y2:.1} l S\n"));
+        self.current_page_stream
+            .push_str(&format!("{x1:.1} {y1:.1} m {x2:.1} {y2:.1} l S\n"));
     }
 
     pub fn draw_text(&mut self, font_tag: &str, size: f32, x: f32, y: f32, text: &str) {
@@ -142,9 +148,8 @@ impl PdfDocument {
             );
             objects.push((page_obj_id, page_obj));
 
-            let stream_obj = format!(
-                "<< /Length {stream_len} >>\nstream\n{stream_content}endstream\n"
-            );
+            let stream_obj =
+                format!("<< /Length {stream_len} >>\nstream\n{stream_content}endstream\n");
             objects.push((stream_obj_id, stream_obj));
         }
 
@@ -278,7 +283,13 @@ impl ReportGenerator {
 
                 pdf.set_fill_color(1.0, 1.0, 1.0); // White text
                 pdf.draw_text("F2", 16.0, 60.0, 735.0, "OPENDECK FINANCIAL INTELLIGENCE");
-                pdf.draw_text("F1", 10.0, 60.0, 722.0, "Air-Gapped Offline Reconciliation & Audit Report");
+                pdf.draw_text(
+                    "F1",
+                    10.0,
+                    60.0,
+                    722.0,
+                    "Air-Gapped Offline Reconciliation & Audit Report",
+                );
 
                 // Workspace & Period Metadata Subhead
                 y = 695.0;
@@ -333,7 +344,10 @@ impl ReportGenerator {
                 pdf.draw_text("F2", 12.0, 325.0, y + 20.0, &net_str);
 
                 // Metric 4: Reconciled Status
-                let approved_count = records.iter().filter(|r| r.match_status == "APPROVED").count();
+                let approved_count = records
+                    .iter()
+                    .filter(|r| r.match_status == "APPROVED")
+                    .count();
                 pdf.set_fill_color(0.4, 0.45, 0.5);
                 pdf.draw_text("F2", 8.0, 445.0, y + 38.0, "RECONCILED");
                 pdf.set_fill_color(0.08, 0.12, 0.22);
@@ -346,7 +360,13 @@ impl ReportGenerator {
                 pdf.set_fill_color(0.08, 0.12, 0.22);
                 pdf.draw_rect(50.0, 740.0, 512.0, 20.0, true, false);
                 pdf.set_fill_color(1.0, 1.0, 1.0);
-                pdf.draw_text("F2", 9.0, 60.0, 746.0, "OPENDECK RECONCILIATION REPORT (CONTINUED)");
+                pdf.draw_text(
+                    "F2",
+                    9.0,
+                    60.0,
+                    746.0,
+                    "OPENDECK RECONCILIATION REPORT (CONTINUED)",
+                );
                 let page_meta = format!("Workspace: {workspace_name} | Period: {period}");
                 pdf.draw_text_right("F1", 8.0, 555.0, 746.0, &page_meta);
 
@@ -367,7 +387,11 @@ impl ReportGenerator {
             y -= 20.0;
 
             // Table Rows
-            let page_limit = if page_num == 1 { rows_page_1 } else { rows_subsequent };
+            let page_limit = if page_num == 1 {
+                rows_page_1
+            } else {
+                rows_subsequent
+            };
             let mut page_row_count = 0;
 
             while record_idx < records.len() && page_row_count < page_limit {

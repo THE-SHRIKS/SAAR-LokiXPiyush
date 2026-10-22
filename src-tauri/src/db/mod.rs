@@ -82,15 +82,21 @@ impl Database {
             params![id, display_name, base_currency, salt, verification_token],
         )?;
 
-        self.record_audit_event(id, "workspace", id, "CREATE", &format!("{{\"display_name\":\"{}\"}}", display_name))?;
+        self.record_audit_event(
+            id,
+            "workspace",
+            id,
+            "CREATE",
+            &format!("{{\"display_name\":\"{}\"}}", display_name),
+        )?;
         Ok(())
     }
 
     /// Retrieves workspace salt and verification token by workspace ID.
     pub fn get_workspace_auth_params(&self, workspace_id: &str) -> Result<(Vec<u8>, [u8; 32])> {
-        let mut stmt = self.conn.prepare(
-            "SELECT salt, verification_token FROM workspaces WHERE id = ?1 LIMIT 1;"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT salt, verification_token FROM workspaces WHERE id = ?1 LIMIT 1;")?;
 
         let mut rows = stmt.query(params![workspace_id])?;
         if let Some(row) = rows.next()? {
@@ -116,7 +122,8 @@ mod tests {
         let token = [2u8; 32];
 
         // 1. Create valid workspace
-        db.create_workspace("ws-1", "Test Workspace", "USD", &salt, &token).unwrap();
+        db.create_workspace("ws-1", "Test Workspace", "USD", &salt, &token)
+            .unwrap();
 
         // 2. Perform transaction that fails mid-way
         let conn = db.connection_mut();
@@ -143,9 +150,16 @@ mod tests {
 
         // Verify that 'doc-valid' was rolled back and does not exist
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM documents WHERE id = 'doc-valid';", [], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM documents WHERE id = 'doc-valid';",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
-        assert_eq!(count, 0, "Failed transaction must roll back all changes completely");
+        assert_eq!(
+            count, 0,
+            "Failed transaction must roll back all changes completely"
+        );
     }
 
     #[test]
@@ -154,10 +168,16 @@ mod tests {
         let salt = vec![0u8; 16];
         let token = [1u8; 32];
 
-        db.create_workspace("ws-audit", "Audit Test WS", "USD", &salt, &token).unwrap();
+        db.create_workspace("ws-audit", "Audit Test WS", "USD", &salt, &token)
+            .unwrap();
 
-        let count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM audit_log WHERE workspace_id = 'ws-audit';", [], |r| r.get(0))
+        let count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE workspace_id = 'ws-audit';",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(count, 1, "Audit log must contain creation record");
     }

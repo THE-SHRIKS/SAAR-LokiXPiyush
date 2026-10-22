@@ -42,7 +42,10 @@ impl AdversarialDefense {
             .replace("<<<", "[DELIMITER_ESCAPED]")
             .replace(">>>", "[DELIMITER_ESCAPED]");
 
-        format!("<<<UNTRUSTED_CONTENT>>>\n{}\n<<<END_UNTRUSTED_CONTENT>>>", sanitized)
+        format!(
+            "<<<UNTRUSTED_CONTENT>>>\n{}\n<<<END_UNTRUSTED_CONTENT>>>",
+            sanitized
+        )
     }
 
     /// Verifies that any monetary or significant numerical figure emitted by the model
@@ -66,13 +69,17 @@ impl AdversarialDefense {
                 let parts: Vec<&str> = clean.split('.').collect();
                 if parts.len() == 2 && parts[1].len() == 2 {
                     let major_str = parts[0].replace(',', "");
-                    if let (Ok(major), Ok(minor)) = (major_str.parse::<i64>(), parts[1].parse::<i64>()) {
+                    if let (Ok(major), Ok(minor)) =
+                        (major_str.parse::<i64>(), parts[1].parse::<i64>())
+                    {
                         let total_cents = if major >= 0 {
                             major * 100 + minor
                         } else {
                             major * 100 - minor
                         };
-                        if !authorized_set.contains(&total_cents) && !authorized_set.contains(&-total_cents) {
+                        if !authorized_set.contains(&total_cents)
+                            && !authorized_set.contains(&-total_cents)
+                        {
                             return Err(format!(
                                 "Hallucinated monetary amount detected: '${}.{:02}' (cents: {}) is not in grounded fact packet.",
                                 major, minor, total_cents
@@ -129,6 +136,8 @@ mod tests {
         let hallucinated_output = "We also found an ungrounded expenditure of $999.99.";
         let res = AdversarialDefense::validate_grounded_numbers(hallucinated_output, &authorized);
         assert!(res.is_err());
-        assert!(res.unwrap_err().contains("Hallucinated monetary amount detected"));
+        assert!(res
+            .unwrap_err()
+            .contains("Hallucinated monetary amount detected"));
     }
 }

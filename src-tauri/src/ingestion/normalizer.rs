@@ -56,10 +56,7 @@ impl FieldNormalizer {
     }
 
     /// Normalizes OCR output into structured financial invoice records
-    pub fn normalize_ocr(
-        ocr: &OcrResponse,
-        default_currency: &str,
-    ) -> NormalizedInvoiceData {
+    pub fn normalize_ocr(ocr: &OcrResponse, default_currency: &str) -> NormalizedInvoiceData {
         let mut full_text_buf = String::new();
         for page in &ocr.pages {
             for line in &page.lines {
@@ -86,7 +83,8 @@ impl FieldNormalizer {
             for (line_idx, line) in page.lines.iter().enumerate() {
                 let text = line.text.trim();
                 let lower = text.to_lowercase();
-                let bbox_str = serde_json::to_string(&line.bbox).unwrap_or_else(|_| "[]".to_string());
+                let bbox_str =
+                    serde_json::to_string(&line.bbox).unwrap_or_else(|_| "[]".to_string());
 
                 // 1. Vendor name heuristic (top lines if not metadata)
                 if vendor_name.is_empty() && line_idx < 3 {
@@ -102,7 +100,10 @@ impl FieldNormalizer {
                             page_num: page.page_num,
                             bounding_box_json: bbox_str.clone(),
                         });
-                    } else if !lower.contains("invoice") && !lower.contains("tax") && !lower.contains("tel") {
+                    } else if !lower.contains("invoice")
+                        && !lower.contains("tax")
+                        && !lower.contains("tel")
+                    {
                         vendor_name = text.to_string();
                         fields.push(NormalizedField {
                             field_key: "vendor_name".to_string(),
@@ -117,7 +118,10 @@ impl FieldNormalizer {
 
                 // 2. Invoice number
                 if invoice_number.is_none() {
-                    if lower.contains("invoice no:") || lower.contains("invoice number:") || lower.contains("receiptid:") {
+                    if lower.contains("invoice no:")
+                        || lower.contains("invoice number:")
+                        || lower.contains("receiptid:")
+                    {
                         let inv_str = if lower.contains("invoice no:") {
                             text.split("Invoice No:").nth(1).unwrap_or("")
                         } else if lower.contains("invoice number:") {
@@ -126,7 +130,7 @@ impl FieldNormalizer {
                             text.split("RECEIPTID:").nth(1).unwrap_or("")
                         }
                         .trim();
-                        
+
                         let clean_inv = inv_str.split_whitespace().next().unwrap_or(inv_str).trim();
                         if !clean_inv.is_empty() {
                             invoice_number = Some(clean_inv.to_string());
@@ -143,11 +147,16 @@ impl FieldNormalizer {
                 }
 
                 // 3. Invoice date & due date
-                if invoice_date.is_none() && (lower.contains("date:") || lower.contains("invoice date:")) {
+                if invoice_date.is_none()
+                    && (lower.contains("date:") || lower.contains("invoice date:"))
+                {
                     let d_str = if lower.contains("invoice date:") {
                         text.split("Invoice Date:").nth(1).unwrap_or("")
                     } else {
-                        text.split("Date:").nth(1).or_else(|| text.split("DATE:").nth(1)).unwrap_or("")
+                        text.split("Date:")
+                            .nth(1)
+                            .or_else(|| text.split("DATE:").nth(1))
+                            .unwrap_or("")
                     };
                     let raw_d = d_str.split_whitespace().next().unwrap_or("");
                     if let Ok(iso_d) = CsvTransactionMapper::normalize_date(raw_d) {
@@ -193,7 +202,11 @@ impl FieldNormalizer {
                             bounding_box_json: bbox_str.clone(),
                         });
                     }
-                } else if lower.contains("tax") || lower.contains("igst") || lower.contains("cgst") || lower.contains("sgst") {
+                } else if lower.contains("tax")
+                    || lower.contains("igst")
+                    || lower.contains("cgst")
+                    || lower.contains("sgst")
+                {
                     let amt = extract_amount_from_line(text, &page.lines, line_idx, &currency);
                     tax_minor += amt;
                     fields.push(NormalizedField {
@@ -204,7 +217,10 @@ impl FieldNormalizer {
                         page_num: page.page_num,
                         bounding_box_json: bbox_str.clone(),
                     });
-                } else if lower.starts_with("total") || lower.contains("total:") || lower.contains("total amount") {
+                } else if lower.starts_with("total")
+                    || lower.contains("total:")
+                    || lower.contains("total amount")
+                {
                     let amt = extract_amount_from_line(text, &page.lines, line_idx, &currency);
                     if amt > 0 {
                         total_minor = amt;
@@ -249,7 +265,11 @@ impl FieldNormalizer {
         }
 
         NormalizedInvoiceData {
-            vendor_name: if vendor_name.is_empty() { "Unknown Supplier".to_string() } else { vendor_name },
+            vendor_name: if vendor_name.is_empty() {
+                "Unknown Supplier".to_string()
+            } else {
+                vendor_name
+            },
             invoice_number,
             invoice_date,
             due_date,

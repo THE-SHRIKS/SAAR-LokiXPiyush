@@ -186,7 +186,10 @@ mod tests {
         let res = usd.add(&eur);
         assert_eq!(
             res,
-            Err(MoneyError::CurrencyMismatch("USD".to_string(), "EUR".to_string()))
+            Err(MoneyError::CurrencyMismatch(
+                "USD".to_string(),
+                "EUR".to_string()
+            ))
         );
     }
 
@@ -198,7 +201,10 @@ mod tests {
 
         // Refund exceeding original must be rejected
         let invalid = expense.apply_refund(5000);
-        assert!(matches!(invalid, Err(MoneyError::RefundExceedsOriginal { .. })));
+        assert!(matches!(
+            invalid,
+            Err(MoneyError::RefundExceedsOriginal { .. })
+        ));
     }
 
     #[test]

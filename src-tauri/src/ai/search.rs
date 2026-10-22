@@ -121,7 +121,8 @@ mod tests {
     #[test]
     fn test_fts5_indexing_and_search() {
         let conn = Connection::open_in_memory().unwrap();
-        crate::db::migrations::Migrator::migrate(&mut Connection::open_in_memory().unwrap()).unwrap();
+        crate::db::migrations::Migrator::migrate(&mut Connection::open_in_memory().unwrap())
+            .unwrap();
 
         // Create FTS table directly for memory test
         conn.execute(
@@ -135,7 +136,8 @@ mod tests {
             "doc-1",
             "gst_invoice_acme.pdf",
             "ACME Tech Services Pvt Ltd Tax Invoice ACME-2026-0915 Amount 118,000 INR",
-        ).unwrap();
+        )
+        .unwrap();
 
         SearchEngine::index_transaction(
             &conn,
@@ -144,7 +146,8 @@ mod tests {
             "CLOUDHOSTING CORP INV-88912",
             Some("INV-88912"),
             "$120.00",
-        ).unwrap();
+        )
+        .unwrap();
 
         let res = SearchEngine::search(&conn, "ws-1", "ACME", 10).unwrap();
         assert_eq!(res.len(), 1);

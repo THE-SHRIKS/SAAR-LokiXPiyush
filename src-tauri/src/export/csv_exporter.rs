@@ -1,6 +1,6 @@
-use sha2::{Digest, Sha256};
-use crate::finance::aggregates::FinancialSummary;
 use crate::export::pdf_writer::ReconciliationReportRow;
+use crate::finance::aggregates::FinancialSummary;
+use sha2::{Digest, Sha256};
 
 /// RFC 4180 compliant CSV field escaping
 pub fn escape_csv_field(val: &str) -> String {
@@ -26,9 +26,7 @@ impl CsvExporter {
     }
 
     /// Export reconciled transaction records to RFC 4180 CSV with SHA-256 provenance hash
-    pub fn export_reconciliation(
-        records: &[ReconciliationReportRow],
-    ) -> (String, String) {
+    pub fn export_reconciliation(records: &[ReconciliationReportRow]) -> (String, String) {
         let mut out = String::new();
         out.push_str("date,description,amount_minor,amount_formatted,currency,match_status,invoice_number,provenance_id\r\n");
 
@@ -79,7 +77,11 @@ impl CsvExporter {
         let total_row = format!(
             "TOTAL,{},{},{},{},{},{},{},{}\r\n",
             escape_csv_field(&summary.currency),
-            summary.monthly_breakdown.iter().map(|m| m.transaction_count).sum::<usize>(),
+            summary
+                .monthly_breakdown
+                .iter()
+                .map(|m| m.transaction_count)
+                .sum::<usize>(),
             summary.total_income_minor,
             summary.total_expense_minor,
             summary.net_savings_minor,

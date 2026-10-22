@@ -20,7 +20,10 @@ impl KeyDeriver {
     }
 
     /// Derives a 32-byte master encryption key from the user passphrase and workspace salt.
-    pub fn derive_master_key(passphrase: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_LEN]>, String> {
+    pub fn derive_master_key(
+        passphrase: &str,
+        salt: &[u8],
+    ) -> Result<Zeroizing<[u8; KEY_LEN]>, String> {
         if passphrase.is_empty() {
             return Err("Passphrase cannot be empty.".to_string());
         }
@@ -89,7 +92,10 @@ mod tests {
         let salt = KeyDeriver::generate_salt();
         let key1 = KeyDeriver::derive_master_key("CorrectHorseBatteryStaple", &salt).unwrap();
         let key2 = KeyDeriver::derive_master_key("CorrectHorseBatteryStaple", &salt).unwrap();
-        assert_eq!(*key1, *key2, "Same passphrase and salt must produce identical keys");
+        assert_eq!(
+            *key1, *key2,
+            "Same passphrase and salt must produce identical keys"
+        );
     }
 
     #[test]
@@ -99,7 +105,8 @@ mod tests {
         let expected_token = KeyDeriver::compute_verification_token(&master_key);
 
         // Verify correct passphrase succeeds
-        let unlocked = KeyDeriver::verify_passphrase("CorrectPassphrase123!", &salt, &expected_token);
+        let unlocked =
+            KeyDeriver::verify_passphrase("CorrectPassphrase123!", &salt, &expected_token);
         assert!(unlocked.is_ok(), "Correct passphrase must succeed");
 
         // Verify incorrect passphrase fails

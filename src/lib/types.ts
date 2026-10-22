@@ -249,4 +249,3 @@ export interface BackupManifest {
   blobCount: number;
   totalRawBytes: number;
 }
-

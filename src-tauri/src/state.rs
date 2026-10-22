@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex};
 use crate::db::Database;
 use crate::ingestion::OcrClient;
 use crate::security::BlobStore;
+use std::sync::{Arc, Mutex};
 use zeroize::Zeroizing;
 
 pub struct AppState {

@@ -1,5 +1,3 @@
-use std::fs;
-use std::path::Path;
 use aes_gcm::aead::{Aead, Payload};
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
@@ -7,6 +5,8 @@ use rand::{rngs::OsRng, RngCore};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::Path;
 use thiserror::Error;
 
 const BACKUP_MAGIC: &[u8; 8] = b"OPENDECK";
@@ -115,7 +115,9 @@ impl BackupService {
         passphrase: &str,
     ) -> Result<BackupManifest, BackupError> {
         if passphrase.trim().is_empty() {
-            return Err(BackupError::Other("Backup passphrase cannot be empty".to_string()));
+            return Err(BackupError::Other(
+                "Backup passphrase cannot be empty".to_string(),
+            ));
         }
 
         // Flush and checkpoint WAL if SQLite database exists
@@ -270,11 +272,8 @@ impl BackupService {
 
         // Verify SQLite database integrity using rusqlite
         let conn = Connection::open(target_db_path)?;
-        let integrity_result: String = conn.query_row(
-            "PRAGMA integrity_check;",
-            [],
-            |row| row.get(0),
-        )?;
+        let integrity_result: String =
+            conn.query_row("PRAGMA integrity_check;", [], |row| row.get(0))?;
         if integrity_result != "ok" {
             return Err(BackupError::IntegrityCheckFailed(format!(
                 "SQLite PRAGMA integrity_check reported: {integrity_result}"
@@ -283,10 +282,15 @@ impl BackupService {
 
         // Unpack blobs with path traversal protection
         fs::create_dir_all(target_blob_dir)?;
-        let canonical_base = target_blob_dir.canonicalize().unwrap_or_else(|_| target_blob_dir.to_path_buf());
+        let canonical_base = target_blob_dir
+            .canonicalize()
+            .unwrap_or_else(|_| target_blob_dir.to_path_buf());
 
         for blob in &payload.blobs {
-            let rel_path_clean = blob.relative_path.trim_start_matches('/').trim_start_matches('\\');
+            let rel_path_clean = blob
+                .relative_path
+                .trim_start_matches('/')
+                .trim_start_matches('\\');
             if rel_path_clean.contains("..") || rel_path_clean.contains(':') {
                 return Err(BackupError::SecurityViolation(format!(
                     "Illegal relative path in blob entry: {}",

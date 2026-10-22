@@ -1,17 +1,13 @@
+use crate::db::Database;
 use rusqlite::{params, Result};
 use serde_json::json;
-use crate::db::Database;
 
 pub struct ReviewService;
 
 impl ReviewService {
     /// Approves a proposed reconciliation link between an invoice and a bank transaction.
     /// Sets both entities to 'APPROVED' and records an immutable audit log entry.
-    pub fn approve_link(
-        db: &mut Database,
-        workspace_id: &str,
-        link_id: &str,
-    ) -> Result<()> {
+    pub fn approve_link(db: &mut Database, workspace_id: &str, link_id: &str) -> Result<()> {
         let (inv_id, tx_id, amount): (String, String, i64) = db
             .conn_ref()
             .query_row(
@@ -49,17 +45,19 @@ impl ReviewService {
         })
         .to_string();
 
-        db.record_audit_event(workspace_id, "invoice_payment_link", link_id, "APPROVE_LINK", &audit_details)?;
+        db.record_audit_event(
+            workspace_id,
+            "invoice_payment_link",
+            link_id,
+            "APPROVE_LINK",
+            &audit_details,
+        )?;
 
         Ok(())
     }
 
     /// Rejects a proposed reconciliation link.
-    pub fn reject_link(
-        db: &Database,
-        workspace_id: &str,
-        link_id: &str,
-    ) -> Result<()> {
+    pub fn reject_link(db: &Database, workspace_id: &str, link_id: &str) -> Result<()> {
         db.conn_ref().execute(
             "UPDATE invoice_payment_links SET status = 'REJECTED' WHERE id = ?1 AND workspace_id = ?2;",
             params![link_id, workspace_id],
@@ -71,7 +69,13 @@ impl ReviewService {
         })
         .to_string();
 
-        db.record_audit_event(workspace_id, "invoice_payment_link", link_id, "REJECT_LINK", &audit_details)?;
+        db.record_audit_event(
+            workspace_id,
+            "invoice_payment_link",
+            link_id,
+            "REJECT_LINK",
+            &audit_details,
+        )?;
 
         Ok(())
     }
@@ -84,13 +88,11 @@ impl ReviewService {
         tx_id: &str,
         new_description: &str,
     ) -> Result<()> {
-        let prior_desc: String = db
-            .conn_ref()
-            .query_row(
-                "SELECT description FROM transactions WHERE id = ?1 AND workspace_id = ?2;",
-                params![tx_id, workspace_id],
-                |r| r.get(0),
-            )?;
+        let prior_desc: String = db.conn_ref().query_row(
+            "SELECT description FROM transactions WHERE id = ?1 AND workspace_id = ?2;",
+            params![tx_id, workspace_id],
+            |r| r.get(0),
+        )?;
 
         db.conn_ref().execute(
             "UPDATE transactions SET description = ?1, review_state = 'CORRECTED' WHERE id = ?2 AND workspace_id = ?3;",
@@ -104,7 +106,13 @@ impl ReviewService {
         })
         .to_string();
 
-        db.record_audit_event(workspace_id, "transaction", tx_id, "CORRECT_TRANSACTION", &audit_details)?;
+        db.record_audit_event(
+            workspace_id,
+            "transaction",
+            tx_id,
+            "CORRECT_TRANSACTION",
+            &audit_details,
+        )?;
 
         Ok(())
     }
@@ -117,13 +125,11 @@ impl ReviewService {
         new_vendor: &str,
         new_number: Option<&str>,
     ) -> Result<()> {
-        let (prior_vendor, prior_number): (String, Option<String>) = db
-            .conn_ref()
-            .query_row(
-                "SELECT vendor_name, invoice_number FROM invoices WHERE id = ?1;",
-                params![invoice_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )?;
+        let (prior_vendor, prior_number): (String, Option<String>) = db.conn_ref().query_row(
+            "SELECT vendor_name, invoice_number FROM invoices WHERE id = ?1;",
+            params![invoice_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
 
         db.conn_ref().execute(
             "UPDATE invoices SET vendor_name = ?1, invoice_number = ?2, review_state = 'CORRECTED' WHERE id = ?3;",
@@ -138,7 +144,13 @@ impl ReviewService {
         })
         .to_string();
 
-        db.record_audit_event(workspace_id, "invoice", invoice_id, "CORRECT_INVOICE", &audit_details)?;
+        db.record_audit_event(
+            workspace_id,
+            "invoice",
+            invoice_id,
+            "CORRECT_INVOICE",
+            &audit_details,
+        )?;
 
         Ok(())
     }
@@ -152,7 +164,8 @@ mod tests {
     fn test_approve_link_updates_state_and_audit() {
         let mut db = Database::open_in_memory().unwrap();
         let ws_id = "ws-review-test";
-        db.create_workspace(ws_id, "Review Test", "USD", &[0u8; 16], &[1u8; 32]).unwrap();
+        db.create_workspace(ws_id, "Review Test", "USD", &[0u8; 16], &[1u8; 32])
+            .unwrap();
 
         // Insert document, invoice, and transaction
         db.conn_ref().execute(
@@ -183,17 +196,45 @@ mod tests {
         ReviewService::approve_link(&mut db, ws_id, "link-1").unwrap();
 
         // Verify status is approved on all entities
-        let link_status: String = db.conn_ref().query_row("SELECT status FROM invoice_payment_links WHERE id = 'link-1';", [], |r| r.get(0)).unwrap();
+        let link_status: String = db
+            .conn_ref()
+            .query_row(
+                "SELECT status FROM invoice_payment_links WHERE id = 'link-1';",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(link_status, "APPROVED");
 
-        let tx_state: String = db.conn_ref().query_row("SELECT review_state FROM transactions WHERE id = 'tx-rev';", [], |r| r.get(0)).unwrap();
+        let tx_state: String = db
+            .conn_ref()
+            .query_row(
+                "SELECT review_state FROM transactions WHERE id = 'tx-rev';",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(tx_state, "APPROVED");
 
-        let inv_state: String = db.conn_ref().query_row("SELECT review_state FROM invoices WHERE id = 'inv-rev';", [], |r| r.get(0)).unwrap();
+        let inv_state: String = db
+            .conn_ref()
+            .query_row(
+                "SELECT review_state FROM invoices WHERE id = 'inv-rev';",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(inv_state, "APPROVED");
 
         // Verify audit trail
-        let audit_count: i64 = db.conn_ref().query_row("SELECT COUNT(*) FROM audit_log WHERE action = 'APPROVE_LINK';", [], |r| r.get(0)).unwrap();
+        let audit_count: i64 = db
+            .conn_ref()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE action = 'APPROVE_LINK';",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(audit_count, 1);
     }
 }

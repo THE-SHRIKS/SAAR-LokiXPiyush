@@ -1,6 +1,6 @@
+use crate::ai::defense::AdversarialDefense;
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
-use crate::ai::defense::AdversarialDefense;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -77,21 +77,40 @@ impl GroundingEngine {
     pub fn parse_intent(query: &str) -> QueryIntent {
         let q = query.to_lowercase();
 
-        if q.contains("total") || q.contains("spend") || q.contains("income") || q.contains("expense")
-            || q.contains("net") || q.contains("savings") || q.contains("aggregate") || q.contains("balance")
-            || q.contains("summary") || q.contains("how much")
+        if q.contains("total")
+            || q.contains("spend")
+            || q.contains("income")
+            || q.contains("expense")
+            || q.contains("net")
+            || q.contains("savings")
+            || q.contains("aggregate")
+            || q.contains("balance")
+            || q.contains("summary")
+            || q.contains("how much")
         {
             QueryIntent::FinancialSummary
-        } else if q.contains("invoice") || q.contains("receipt") || q.contains("tax") || q.contains("vendor")
-            || q.contains("bill") || q.contains("gst")
+        } else if q.contains("invoice")
+            || q.contains("receipt")
+            || q.contains("tax")
+            || q.contains("vendor")
+            || q.contains("bill")
+            || q.contains("gst")
         {
             QueryIntent::DocumentQuery
-        } else if q.contains("unlinked") || q.contains("reconcil") || q.contains("match")
-            || q.contains("duplicate") || q.contains("anomaly") || q.contains("unpaid")
+        } else if q.contains("unlinked")
+            || q.contains("reconcil")
+            || q.contains("match")
+            || q.contains("duplicate")
+            || q.contains("anomaly")
+            || q.contains("unpaid")
         {
             QueryIntent::ReconciliationStatus
-        } else if q.contains("transaction") || q.contains("debit") || q.contains("credit")
-            || q.contains("payment") || q.contains("ledger") || q.contains("bank")
+        } else if q.contains("transaction")
+            || q.contains("debit")
+            || q.contains("credit")
+            || q.contains("payment")
+            || q.contains("ledger")
+            || q.contains("bank")
         {
             QueryIntent::TransactionSearch
         } else {
