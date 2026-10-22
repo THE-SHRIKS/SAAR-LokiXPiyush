@@ -38,7 +38,7 @@ impl ExportService {
                 [workspace_id],
                 |row| row.get(0),
             )
-            .unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
+            .unwrap_or_else(|_| "SAAR Default Workspace".to_string());
 
         // Inflow / Outflow totals
         let (total_income, total_expense): (i64, i64) = conn

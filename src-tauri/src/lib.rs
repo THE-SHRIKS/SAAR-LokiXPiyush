@@ -18,12 +18,12 @@ pub fn run() {
     let app_state = AppState::new();
 
     // In local development / portable execution, initialize database and blob storage
-    let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
+    let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
         .map(|dirs| dirs.data_local_dir().to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
     let _ = std::fs::create_dir_all(&data_dir);
-    let db_path = data_dir.join("opendeck_workspace.db");
+    let db_path = data_dir.join("saar_workspace.db");
     let blob_path = data_dir.join("blobs");
 
     if let Ok(db) = Database::open(&db_path) {
@@ -72,5 +72,5 @@ pub fn run() {
             commands::restore_encrypted_backup,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running OpenDeck application");
+        .expect("error while running SAAR application");
 }

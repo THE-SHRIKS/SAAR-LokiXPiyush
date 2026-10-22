@@ -1,12 +1,12 @@
 [package]
-name = "opendeck"
+name = "saar"
 version = "0.1.0"
-description = "Air-Gapped Offline Financial Intelligence Workspace"
+description = "SAAR - Offline Financial Intelligence Workspace"
 authors = ["THE SHRIKS"]
 edition = "2021"
 
 [lib]
-name = "opendeck_lib"
+name = "saar_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

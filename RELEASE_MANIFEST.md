@@ -1,4 +1,4 @@
-# OpenDeck Release Manifest & Software Bill of Materials (SBOM)
+# SAAR Release Manifest & Software Bill of Materials (SBOM)
 
 **Version:** 0.1.0  
 **Target Release:** Production Desktop (Debian GNU/Linux 13 / Microsoft Windows 10/11 x64)  

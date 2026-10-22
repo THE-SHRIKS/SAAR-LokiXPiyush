@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Strict offline permissions for OpenDeck desktop shell without network or updater capabilities",
+  "description": "Strict offline permissions for SAAR desktop shell without network or updater capabilities",
   "windows": ["main"],
   "permissions": [
     "core:path:default",

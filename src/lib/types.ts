@@ -1,5 +1,5 @@
 /**
- * OpenDeck Typed Domain Entities & IPC Schema
+ * SAAR Typed Domain Entities & IPC Schema
  * Strictly enforces integer minor-unit amounts and offline auditability.
  */
 

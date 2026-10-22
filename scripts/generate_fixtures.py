@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate authentic test fixtures for OpenDeck test corpus."""
+"""Generate authentic test fixtures for SAAR test corpus."""
 
 import os
 from reportlab.lib.pagesizes import letter

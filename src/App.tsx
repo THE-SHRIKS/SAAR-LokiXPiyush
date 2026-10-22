@@ -17,7 +17,7 @@ import {
   ExportResult,
   formatMinorCurrency,
 } from "./lib/types";
-import { OpenDeckApi } from "./lib/api";
+import { SaarApi } from "./lib/api";
 import {
   ShieldCheck,
   FileText,
@@ -74,7 +74,7 @@ export const App: React.FC = () => {
   >([
     {
       sender: "assistant",
-      text: "OpenDeck Grounded Financial Assistant is online. All inference runs locally via Qwen2.5-3B on AVX2 CPU with deterministic greedy decoding and provenance citation enforcement. Ask any question about your local financial records.",
+      text: "SAAR Grounded Financial Assistant is online. All inference runs locally via Qwen2.5-3B on AVX2 CPU with deterministic greedy decoding and provenance citation enforcement. Ask any question about your local financial records.",
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -128,24 +128,24 @@ export const App: React.FC = () => {
   const [isImporting, setIsImporting] = useState<boolean>(false);
 
   useEffect(() => {
-    OpenDeckApi.getSystemStatus().then(setStatus).catch(console.error);
+    SaarApi.getSystemStatus().then(setStatus).catch(console.error);
   }, []);
 
   const refreshData = async () => {
     try {
-      const docs = await OpenDeckApi.listDocuments();
+      const docs = await SaarApi.listDocuments();
       setDocuments(docs);
-      const txs = await OpenDeckApi.listTransactions();
+      const txs = await SaarApi.listTransactions();
       setTransactions(txs);
-      const links = await OpenDeckApi.listReconciliationLinks();
+      const links = await SaarApi.listReconciliationLinks();
       setReconciliationLinks(links);
-      const anoms = await OpenDeckApi.listAnomalies();
+      const anoms = await SaarApi.listAnomalies();
       setAnomalies(anoms);
-      const summary = await OpenDeckApi.getFinancialSummary("USD");
+      const summary = await SaarApi.getFinancialSummary("USD");
       setFinancialSummary(summary);
-      const logs = await OpenDeckApi.listAuditLog();
+      const logs = await SaarApi.listAuditLog();
       setAuditLogs(logs);
-      const exports = await OpenDeckApi.listReportExports();
+      const exports = await SaarApi.listReportExports();
       setReportExports(exports);
     } catch (e) {
       console.error("Refresh failed:", e);
@@ -156,11 +156,11 @@ export const App: React.FC = () => {
     setIsExporting(true);
     setExportFeedback(null);
     try {
-      const res = await OpenDeckApi.exportReconciliationReport(format);
+      const res = await SaarApi.exportReconciliationReport(format);
       setExportFeedback(
         `Export generated successfully: ${res.filePath} (${res.recordCount} records, Snapshot SHA-256: ${res.recordSnapshotHash.slice(0, 16)}...)`
       );
-      const exports = await OpenDeckApi.listReportExports();
+      const exports = await SaarApi.listReportExports();
       setReportExports(exports);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -179,7 +179,7 @@ export const App: React.FC = () => {
     setIsBackupLoading(true);
     setBackupFeedback(null);
     try {
-      const manifest = await OpenDeckApi.createEncryptedBackup(backupPassphrase);
+      const manifest = await SaarApi.createEncryptedBackup(backupPassphrase);
       setBackupFeedback(
         `Encrypted backup created successfully! Blobs: ${manifest.blobCount}, DB SHA: ${manifest.dbSha256.slice(0, 16)}..., Size: ${manifest.totalRawBytes} bytes`
       );
@@ -201,7 +201,7 @@ export const App: React.FC = () => {
     setIsRestoreLoading(true);
     setRestoreFeedback(null);
     try {
-      const manifest = await OpenDeckApi.restoreEncryptedBackup(
+      const manifest = await SaarApi.restoreEncryptedBackup(
         restoreArchivePath,
         restorePassphrase
       );
@@ -227,7 +227,7 @@ export const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const ws = await OpenDeckApi.createWorkspace(workspaceName, passphrase, "USD");
+      const ws = await SaarApi.createWorkspace(workspaceName, passphrase, "USD");
       setWorkspace(ws);
       await refreshData();
     } catch (err: unknown) {
@@ -239,7 +239,7 @@ export const App: React.FC = () => {
   };
 
   const handleLock = async () => {
-    await OpenDeckApi.lockWorkspace();
+    await SaarApi.lockWorkspace();
     setWorkspace(null);
     setDocuments([]);
     setTransactions([]);
@@ -256,14 +256,14 @@ export const App: React.FC = () => {
     setImportMessage({ text: `Ingesting document from ${targetPath}...`, type: "info" });
 
     try {
-      const res = await OpenDeckApi.ingestFile(targetPath.trim());
+      const res = await SaarApi.ingestFile(targetPath.trim());
       if (res.type === "success") {
         setImportMessage({
           text: `Successfully ingested "${res.fileName}" (${res.docType}) — ${res.recordsExtracted} items extracted.`,
           type: "success",
         });
         await refreshData();
-        const details = await OpenDeckApi.getDocumentDetails(res.documentId);
+        const details = await SaarApi.getDocumentDetails(res.documentId);
         setSelectedDocDetails(details);
       } else {
         setImportMessage({
@@ -284,7 +284,7 @@ export const App: React.FC = () => {
     setIsReconciling(true);
     setReviewMessage("Running deterministic matching rules & anomaly detection...");
     try {
-      const res = await OpenDeckApi.runReconciliation();
+      const res = await SaarApi.runReconciliation();
       setReconciliationLinks(res.links);
       setAnomalies(res.anomalies);
       setReviewMessage(
@@ -301,7 +301,7 @@ export const App: React.FC = () => {
 
   const handleApproveLink = async (linkId: string) => {
     try {
-      await OpenDeckApi.approveReconciliationLink(linkId);
+      await SaarApi.approveReconciliationLink(linkId);
       setReviewMessage("Match link approved and audit trail recorded.");
       await refreshData();
     } catch (err: unknown) {
@@ -312,7 +312,7 @@ export const App: React.FC = () => {
 
   const handleRejectLink = async (linkId: string) => {
     try {
-      await OpenDeckApi.rejectReconciliationLink(linkId, "User rejected match suggestion");
+      await SaarApi.rejectReconciliationLink(linkId, "User rejected match suggestion");
       setReviewMessage("Match link rejected and logged to audit trail.");
       await refreshData();
     } catch (err: unknown) {
@@ -323,9 +323,9 @@ export const App: React.FC = () => {
 
   const selectDocument = async (docId: string) => {
     try {
-      const details = await OpenDeckApi.getDocumentDetails(docId);
+      const details = await SaarApi.getDocumentDetails(docId);
       setSelectedDocDetails(details);
-      const preview = await OpenDeckApi.getDocumentPreview(docId);
+      const preview = await SaarApi.getDocumentPreview(docId);
       setDocPreview(preview);
       setActiveField(null);
     } catch (err) {
@@ -336,7 +336,7 @@ export const App: React.FC = () => {
   const handleSaveCorrection = async () => {
     if (!correctingTx || !correctionInput.trim()) return;
     try {
-      await OpenDeckApi.correctTransaction(correctingTx.id, correctionInput.trim());
+      await SaarApi.correctTransaction(correctingTx.id, correctionInput.trim());
       setReviewMessage(
         `Transaction ${correctingTx.id.substring(0, 8)} corrected to: "${correctionInput.trim()}"`
       );
@@ -364,7 +364,7 @@ export const App: React.FC = () => {
     setIsChatLoading(true);
 
     try {
-      const res = await OpenDeckApi.chatGrounded(query);
+      const res = await SaarApi.chatGrounded(query);
       const assistantMsg = {
         sender: "assistant" as const,
         text: res.answer,
@@ -395,7 +395,7 @@ export const App: React.FC = () => {
     }
     setIsSearching(true);
     try {
-      const results = await OpenDeckApi.searchWorkspace(term.trim());
+      const results = await SaarApi.searchWorkspace(term.trim());
       setSearchResults(results);
     } catch (err) {
       console.error("Search error:", err);
@@ -418,7 +418,7 @@ export const App: React.FC = () => {
   const handleClassifyTransaction = async (txId: string) => {
     setClassifyingTxId(txId);
     try {
-      const proposal = await OpenDeckApi.classifyTransaction(txId);
+      const proposal = await SaarApi.classifyTransaction(txId);
       setProposals((prev) => ({ ...prev, [txId]: proposal }));
     } catch (err) {
       console.error("Classification error:", err);
@@ -431,7 +431,7 @@ export const App: React.FC = () => {
     const proposal = proposals[txId];
     if (!proposal) return;
     try {
-      await OpenDeckApi.approveCategory(proposal.id);
+      await SaarApi.approveCategory(proposal.id);
       setProposals((prev) => ({
         ...prev,
         [txId]: { ...proposal, status: "APPROVED" },
@@ -447,7 +447,7 @@ export const App: React.FC = () => {
       {/* Editorial Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="brand-title">OpenDeck</div>
+          <div className="brand-title">SAAR</div>
           <div className="brand-badge">Air-Gapped Desktop</div>
         </div>
 
@@ -1742,7 +1742,7 @@ export const App: React.FC = () => {
                     <div className="security-card" style={{ gridColumn: "1 / -1", marginTop: 12 }}>
                       <div className="card-title">
                         <Archive size={18} />
-                        <span>Encrypted Offline Backup & Disaster Recovery (.opendeck)</span>
+                        <span>Encrypted Offline Backup & Disaster Recovery (.saar)</span>
                       </div>
                       <p className="text-small text-muted" style={{ marginBottom: 14 }}>
                         Create an authenticated, tamper-evident AES-256-GCM archive containing the
@@ -1799,7 +1799,7 @@ export const App: React.FC = () => {
                           <input
                             type="text"
                             className="input-text"
-                            placeholder="Absolute path to .opendeck file..."
+                            placeholder="Absolute path to .saar file..."
                             value={restoreArchivePath}
                             onChange={(e) => setRestoreArchivePath(e.target.value)}
                             disabled={isRestoreLoading}

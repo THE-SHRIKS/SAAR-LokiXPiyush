@@ -1,4 +1,4 @@
-# OpenDeck 🏛️⚡
+# SAAR 🏛️⚡
 
 > **Offline, Air-Gapped, Local-First Financial Intelligence & Deterministic Reconciliation Workspace**  
 > Built for **THE SHRIKS** — Zero Cloud Calls • Zero Telemetry • Exact Minor-Unit Money Math • Real Local AI
@@ -16,16 +16,16 @@
 
 ## 🌟 Overview
 
-**OpenDeck** is a high-assurance financial intelligence desktop workstation engineered from the ground up for strict offline operational privacy. It allows founders, operators, and enterprises to manage high-stakes financial operations—invoices, bank statements, receipts, multi-currency ledgers, and transaction reconciliations—without exposing a single byte of sensitive financial data to cloud servers or third-party APIs.
+**SAAR** is a high-assurance financial intelligence desktop workstation engineered from the ground up for strict offline operational privacy. It allows founders, operators, and enterprises to manage high-stakes financial operations—invoices, bank statements, receipts, multi-currency ledgers, and transaction reconciliations—without exposing a single byte of sensitive financial data to cloud servers or third-party APIs.
 
-### 🛡️ Why OpenDeck?
+### 🛡️ Why SAAR?
 
 * **Total Air-Gap Isolation (`connect-src 'none'`):** Enforced by WebKit/WebView2 CSP, OS supervisor controls, and isolated Linux namespace tests (`unshare -rn`). Zero outgoing network sockets, zero DNS lookups, zero analytics.
 * **Exact Integer Minor-Unit Currency Arithmetic:** Never uses floating-point numbers (`f32`/`f64`) for money. All values are represented as signed 64-bit integers (`i64`) in atomic minor currency units (cents, paise, yen).
 * **Grounded Local LLM Runtimes:** Bundles offline `llama.cpp` CPU execution running quantized **Qwen2.5-3B-Instruct** (`Q3_K_M.gguf`). Enforces strict **GBNF formal grammars** for expense categorization and verified source citations (`[inv:ID]`, `[tx:ID]`) with anti-hallucination verification.
 * **Local OCR & Evidence Inspector:** RapidOCR ONNX models extract tabular data and bounding boxes from digital PDFs, scanned receipts, and invoices with interactive visual overlays.
 * **Deterministic Multi-Pass Reconciliation:** Automated deterministic rule pipelines for exact matches, vendor token matching, and date tolerance windows.
-* **Authenticated Encrypted Archives (`.opendeck`):** AES-256-GCM authenticated container bundling the encrypted SQLite database and blob store with Argon2id key derivation.
+* **Authenticated Encrypted Archives (`.saar`):** AES-256-GCM authenticated container bundling the encrypted SQLite database and blob store with Argon2id key derivation.
 
 ---
 
@@ -52,7 +52,7 @@ flowchart TD
         DB["SQLite 3 (WAL + FTS5)\nForeign Keys + Crash Recovery"]
         MONEY["Exact Minor-Unit Math\n(i64 Cents / Overflow Proof)"]
         EXP["PDF 1.4 & RFC 4180\nVector Report Exporter"]
-        BACKUP["Authenticated .opendeck\nBackup & Restore Engine"]
+        BACKUP["Authenticated .saar\nBackup & Restore Engine"]
     end
 
     subgraph SIDECARS ["Local Offline Sidecars"]
@@ -69,7 +69,7 @@ flowchart TD
 ## 📂 Project Structure
 
 ```text
-OpenDeck/
+SAAR/
 ├── Docs/                           # Architecture decision records & specifications
 │   ├── ACCEPTANCE/                 # Windows & Release acceptance matrix (T-01..T-20)
 │   ├── ADR/                        # 10 formal Architecture Decision Records
@@ -113,7 +113,7 @@ OpenDeck/
 ├── workers/
 │   └── ocr/                        # RapidOCR isolated sidecar worker
 ├── RELEASE_MANIFEST.md             # Complete release SBOM and cryptographic hashes
-├── RELEASE_NOTES.md                # Release notes for OpenDeck v0.1.0
+├── RELEASE_NOTES.md                # Release notes for SAAR v0.1.0
 ├── STATUS.md                       # Quality Gates G0–G7 sign-off ledger
 └── package.json                    # Node dependencies & frontend scripts
 ```
@@ -130,7 +130,7 @@ OpenDeck/
 | **G3** | Financial Core | **PASSED** | Signed 64-bit integer money math, multi-pass matching, duplicate detection |
 | **G4** | Grounded Local AI | **PASSED** | Offline `llama-cli`, Fact Packets, GBNF formal grammar, anti-hallucination guard |
 | **G5** | Editorial Interface | **PASSED** | Evidence inspector, bounding boxes, manual edit audit capture, SVG trend charts |
-| **G6** | Reliability & Backup | **PASSED** | Pure-Rust PDF 1.4 report writer, authenticated `.opendeck` backup, egress denial audit |
+| **G6** | Reliability & Backup | **PASSED** | Pure-Rust PDF 1.4 report writer, authenticated `.saar` backup, egress denial audit |
 | **G7** | Native Windows Release | **PASSED** | Offline NSIS/WiX installer configuration, Windows PowerShell build automation |
 
 ---
@@ -178,7 +178,7 @@ OpenDeck/
 
 ## 🧪 Testing & Verification
 
-OpenDeck comes with a comprehensive test suite covering cryptographic safety, integer mathematics, AI grounding, and network denial:
+SAAR comes with a comprehensive test suite covering cryptographic safety, integer mathematics, AI grounding, and network denial:
 
 ```bash
 # 1. Run all Rust unit and integration tests (61 tests)
@@ -219,6 +219,6 @@ pnpm run format
 ---
 
 <p align="center">
-  <b>OpenDeck</b> is developed and maintained with pride by <b>THE SHRIKS</b>.<br>
+  <b>SAAR</b> is developed and maintained with pride by <b>THE SHRIKS</b>.<br>
   <i>Empowering local financial sovereignty with mathematical certainty.</i>
 </p>

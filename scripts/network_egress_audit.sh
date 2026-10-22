@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${ROOT_DIR}/scripts/env.sh"
 
-echo "=== OpenDeck Offline Egress Denial & Network Boundary Audit ==="
+echo "=== SAAR Offline Egress Denial & Network Boundary Audit ==="
 echo "Date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo "Host: $(uname -srmn)"
 
@@ -60,7 +60,7 @@ cat <<EOF > "${AUDIT_REPORT}"
 
 - **Audit Date:** $(date -u '+%Y-%m-%dT%H:%M:%SZ')
 - **Platform:** Debian GNU/Linux 13 (trixie) x86_64
-- **Auditor:** OpenDeck Offline Verification Harness
+- **Auditor:** SAAR Offline Verification Harness
 - **Status:** **PASSED — AIR-GAP VERIFIED (0 EXTERNAL CALLS)**
 
 ---

@@ -149,7 +149,7 @@ impl LlmEngine {
         let mut temp_grammar_path = None;
         if let Some(grammar_str) = grammar {
             let temp_path = std::env::temp_dir()
-                .join(format!("opendeck_grammar_{}.gbnf", uuid::Uuid::new_v4()));
+                .join(format!("saar_grammar_{}.gbnf", uuid::Uuid::new_v4()));
             std::fs::write(&temp_path, grammar_str)?;
             cmd.arg("--grammar-file").arg(&temp_path);
             temp_grammar_path = Some(temp_path);

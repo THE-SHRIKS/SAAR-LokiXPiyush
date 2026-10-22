@@ -227,7 +227,7 @@ impl GroundingEngine {
     /// Formats the fact packet into a strict system and user prompt for the local model.
     pub fn build_prompts(packet: &GroundedFactPacket) -> (String, String) {
         let system_prompt =
-            "You are OpenDeck, an offline financial intelligence assistant. \
+            "You are SAAR, an offline financial intelligence assistant. \
              You must answer user questions accurately based SOLELY on the facts provided in the FACT_PACKET. \
              RULES: \
              1. Every factual statement or financial number must cite its source entity using tags like [inv:ID] or [tx:ID]. \

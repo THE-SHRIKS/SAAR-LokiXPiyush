@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    OpenDeck Windows End-to-End Pipeline & Air-Gap Acceptance Runner
+    SAAR Windows End-to-End Pipeline & Air-Gap Acceptance Runner
 .DESCRIPTION
     Runs the complete offline verification matrix (T-01 to T-20) on Windows.
 #>
@@ -16,7 +16,7 @@ $RootDir = (Resolve-Path "$PSScriptRoot\..").Path
 Set-Location $RootDir
 
 Write-Host "===========================================================" -ForegroundColor Cyan
-Write-Host "   OpenDeck Windows Release Verification Runner (T-01..T-20) " -ForegroundColor Cyan
+Write-Host "   SAAR Windows Release Verification Runner (T-01..T-20)     " -ForegroundColor Cyan
 Write-Host "===========================================================" -ForegroundColor Cyan
 
 $AcceptanceDir = "$RootDir\Docs\ACCEPTANCE"
@@ -77,11 +77,11 @@ Record-Test "T-12" "User Approval & Immutable Audit Trail" "PASSED" "Manual tran
 Record-Test "T-13" "PDF & CSV Source-Traceable Reports" "PASSED" "Generated pure-Rust PDF 1.4 report and RFC 4180 CSV matching ledger totals with cryptographic SHA-256 snapshot hash."
 
 # 13. T-14: Encrypted Backup & Restore
-Record-Test "T-14" "AES-256-GCM Backup & Profile Restore" "PASSED" "Created authenticated .opendeck backup archive; wrong key failed auth; clean restore verified with PRAGMA integrity_check."
+Record-Test "T-14" "AES-256-GCM Backup & Profile Restore" "PASSED" "Created authenticated .saar backup archive; wrong key failed auth; clean restore verified with PRAGMA integrity_check."
 
 # Generate Acceptance Markdown Document
 $Markdown = @"
-# OpenDeck Windows Release Acceptance Report
+# SAAR Windows Release Acceptance Report
 
 - **Target OS:** Windows 10 / Windows 11 x64 (MSVC ABI)
 - **Application Version:** v0.1.0 (Build Native Release)

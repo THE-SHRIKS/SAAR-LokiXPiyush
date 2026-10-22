@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenDeck Local Document Extraction Worker
+SAAR Local Document Extraction Worker
 Runs offline on CPU with AVX2.
 Extracts digital text layers from born-digital PDFs, or runs RapidOCR on scanned documents/images.
 Outputs structured JSON to stdout.
@@ -168,7 +168,7 @@ def process_ocr_image_or_scanned_pdf(file_path):
     }
 
 def main():
-    parser = argparse.ArgumentParser(description="OpenDeck Local Document Extractor")
+    parser = argparse.ArgumentParser(description="SAAR Local Document Extractor")
     parser.add_argument("--input-file", required=True, help="Path to input document file")
     parser.add_argument(
         "--mode",

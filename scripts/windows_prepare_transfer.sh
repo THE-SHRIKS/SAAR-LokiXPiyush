@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "=== OpenDeck Windows Transfer & Asset Packaging Harness ==="
+echo "=== SAAR Windows Transfer & Asset Packaging Harness ==="
 echo "Generating offline Windows deployment package manifest..."
 
 PACKAGE_DIR="${ROOT_DIR}/dist_windows_transfer"
@@ -27,7 +27,7 @@ echo "  Qwen2.5 Model SHA-256: ${MODEL_HASH}"
 
 # Create transfer checksum manifest
 cat <<EOF > "${PACKAGE_DIR}/TRANSFER_CHECKSUMS.txt"
-# OpenDeck Verified Transfer Manifest
+# SAAR Verified Transfer Manifest
 # Date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
 ${MODEL_HASH}  models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf
 EOF
@@ -50,16 +50,16 @@ fi
 
 echo "[4/4] Generating transfer instructions..."
 cat <<EOF > "${PACKAGE_DIR}/README_TRANSFER.txt"
-OpenDeck Native Windows 10/11 Deployment Pack
+SAAR Native Windows 10/11 Deployment Pack
 =============================================
 1. Clone git repository onto Windows host:
-   git clone <repo-url> C:\OpenDeck
-2. Place model weights into C:\OpenDeck\models\weights\
+   git clone <repo-url> C:\SAAR
+2. Place model weights into C:\SAAR\models\weights\
 3. Open PowerShell as Administrator and run:
    .\scripts\windows_build_all.ps1
 4. Execute full offline regression tests:
    .\scripts\windows_verify_pipeline.ps1
 EOF
 
-echo "=== OpenDeck Windows Transfer Manifest Ready ==="
+echo "=== SAAR Windows Transfer Manifest Ready ==="
 echo "Package directory: ${PACKAGE_DIR}"

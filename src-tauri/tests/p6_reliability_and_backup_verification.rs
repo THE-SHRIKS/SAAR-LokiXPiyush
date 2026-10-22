@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use std::process::Command;
 use uuid::Uuid;
 
-use opendeck_lib::db::Database;
-use opendeck_lib::export::ExportService;
-use opendeck_lib::security::{BackupError, BackupService, BlobStore, KeyDeriver, LogScrubber};
+use saar_lib::db::Database;
+use saar_lib::export::ExportService;
+use saar_lib::security::{BackupError, BackupService, BlobStore, KeyDeriver, LogScrubber};
 
 fn setup_test_workspace(
     temp_dir: &PathBuf,
@@ -117,7 +117,7 @@ fn test_p6_01_source_traceable_csv_and_pdf_exports() {
     let extracted_text = String::from_utf8_lossy(&pdftotext_output.stdout);
 
     // Verify key fields in extracted PDF text
-    assert!(extracted_text.contains("OPENDECK FINANCIAL INTELLIGENCE"));
+    assert!(extracted_text.contains("SAAR FINANCIAL INTELLIGENCE"));
     assert!(extracted_text.contains("THE SHRIKS Phase 6 Corp"));
     assert!(extracted_text.contains("INV-2026-8899"));
     assert!(extracted_text.contains("USD 3500.00")); // Inflow
@@ -222,7 +222,7 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
 
     // Verify magic header
     let archive_raw = fs::read(&archive_path).expect("Read archive");
-    assert_eq!(&archive_raw[0..8], b"OPENDECK");
+    assert_eq!(&archive_raw[0..8], b"SAARSAFE");
     assert_eq!(archive_raw[8..10], 1u16.to_be_bytes());
 
     // 3. Test wrong passphrase rejection

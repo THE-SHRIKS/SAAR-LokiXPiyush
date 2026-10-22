@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v2.12.5/crates/tauri-cli/schema.json",
-  "productName": "OpenDeck",
+  "productName": "SAAR",
   "version": "0.1.0",
-  "identifier": "com.theshriks.opendeck",
+  "identifier": "com.theshriks.saar",
   "build": {
     "frontendDist": "../dist"
   },
@@ -13,7 +13,7 @@
     },
     "windows": [
       {
-        "title": "OpenDeck — Financial Intelligence",
+        "title": "SAAR — Financial Intelligence",
         "width": 1280,
         "height": 840,
         "minWidth": 900,

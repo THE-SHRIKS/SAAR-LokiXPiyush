@@ -1,5 +1,5 @@
 /**
- * Typed Tauri Command Bridge for OpenDeck
+ * Typed Tauri Command Bridge for SAAR
  * Bridges React UI to the trusted Rust core via Tauri invoke().
  */
 
@@ -24,7 +24,7 @@ import {
   BackupManifest,
 } from "./types";
 
-export class OpenDeckApi {
+export class SaarApi {
   /**
    * Retrieves host runtime state, offline verification, and engine statuses.
    */
@@ -218,7 +218,7 @@ export class OpenDeckApi {
   }
 
   /**
-   * Creates an encrypted authenticated .opendeck backup archive of database and blobs.
+   * Creates an encrypted authenticated .saar backup archive of database and blobs.
    */
   static async createEncryptedBackup(
     passphrase: string,
@@ -231,7 +231,7 @@ export class OpenDeckApi {
   }
 
   /**
-   * Restores an encrypted authenticated .opendeck backup archive into target directories.
+   * Restores an encrypted authenticated .saar backup archive into target directories.
    */
   static async restoreEncryptedBackup(
     archivePath: string,
@@ -245,3 +245,5 @@ export class OpenDeckApi {
     });
   }
 }
+
+export const OpenDeckApi = SaarApi;

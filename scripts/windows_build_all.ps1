@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    OpenDeck Native Windows Build & Offline Packaging Pipeline
+    SAAR Native Windows Build & Offline Packaging Pipeline
 .DESCRIPTION
     Builds native Windows sidecars (llama-cli.exe, ocr_worker.exe), verifies model weights,
     builds the React frontend, and packages the complete offline NSIS desktop installer.
@@ -19,7 +19,7 @@ $RootDir = (Resolve-Path "$PSScriptRoot\..").Path
 Set-Location $RootDir
 
 Write-Host "===========================================================" -ForegroundColor Cyan
-Write-Host "    OpenDeck Native Windows Packaging Pipeline (v0.1.0)    " -ForegroundColor Cyan
+Write-Host "    SAAR Native Windows Packaging Pipeline (v0.1.0)        " -ForegroundColor Cyan
 Write-Host "===========================================================" -ForegroundColor Cyan
 Write-Host "Build Root: $RootDir"
 Write-Host "Target Architecture: $Target"
@@ -113,7 +113,7 @@ if ($Installer) {
     Write-Host "SHA-256:   $InstallerHash"
 
     $Summary = @{
-        product = "OpenDeck"
+        product = "SAAR"
         version = "0.1.0"
         target = $Target
         installerPath = $Installer.FullName

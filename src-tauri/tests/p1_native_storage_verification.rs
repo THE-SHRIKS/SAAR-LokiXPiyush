@@ -1,5 +1,5 @@
-use opendeck_lib::db::Database;
-use opendeck_lib::security::{BlobStore, KeyDeriver};
+use saar_lib::db::Database;
+use saar_lib::security::{BlobStore, KeyDeriver};
 use rusqlite::params;
 use std::fs;
 use uuid::Uuid;
@@ -220,22 +220,22 @@ fn test_p1_05_offline_configuration_and_csp_audit() {
         let p_str = perm.as_str().unwrap();
         assert!(
             !p_str.starts_with("http:"),
-            "HTTP permissions are strictly prohibited in OpenDeck: found {}",
+            "HTTP permissions are strictly prohibited in SAAR: found {}",
             p_str
         );
         assert!(
             !p_str.starts_with("network:"),
-            "Network permissions are strictly prohibited in OpenDeck: found {}",
+            "Network permissions are strictly prohibited in SAAR: found {}",
             p_str
         );
         assert!(
             !p_str.starts_with("updater:"),
-            "Updater permissions are strictly prohibited in OpenDeck: found {}",
+            "Updater permissions are strictly prohibited in SAAR: found {}",
             p_str
         );
         assert!(
             !p_str.starts_with("shell:"),
-            "Arbitrary shell permissions are strictly prohibited in OpenDeck: found {}",
+            "Arbitrary shell permissions are strictly prohibited in SAAR: found {}",
             p_str
         );
     }

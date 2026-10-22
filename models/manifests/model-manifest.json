@@ -1,5 +1,5 @@
 {
-  "$schema": "https://opendeck.local/schemas/model-manifest.v1.json",
+  "$schema": "https://saar.local/schemas/model-manifest.v1.json",
   "manifest_version": "1.0.0",
   "models": {
     "llm_primary": {

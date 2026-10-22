@@ -9,9 +9,9 @@ use std::fs;
 use std::path::Path;
 use thiserror::Error;
 
-const BACKUP_MAGIC: &[u8; 8] = b"OPENDECK";
+const BACKUP_MAGIC: &[u8; 8] = b"SAARSAFE";
 const BACKUP_VERSION: u16 = 1;
-const AAD_BYTES: &[u8] = b"OPENDECK_V1_BACKUP_CONTAINER";
+const AAD_BYTES: &[u8] = b"SAAR_V1_BACKUP_CONTAINER";
 
 #[derive(Error, Debug)]
 pub enum BackupError {
@@ -218,9 +218,13 @@ impl BackupService {
         }
 
         // Verify Magic
-        if &archive_bytes[0..8] != BACKUP_MAGIC {
+        let aad: &[u8] = if &archive_bytes[0..8] == BACKUP_MAGIC {
+            AAD_BYTES
+        } else if &archive_bytes[0..8] == b"OPENDECK" {
+            b"OPENDECK_V1_BACKUP_CONTAINER"
+        } else {
             return Err(BackupError::InvalidHeader);
-        }
+        };
 
         let version = u16::from_be_bytes([archive_bytes[8], archive_bytes[9]]);
         if version != BACKUP_VERSION {
@@ -244,7 +248,7 @@ impl BackupService {
                 nonce,
                 Payload {
                     msg: ciphertext,
-                    aad: AAD_BYTES,
+                    aad,
                 },
             )
             .map_err(|_| BackupError::AuthenticationFailed)?;

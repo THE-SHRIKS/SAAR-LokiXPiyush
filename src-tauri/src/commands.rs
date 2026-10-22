@@ -1002,13 +1002,13 @@ pub fn export_reconciliation_report(
     let target_path = match destination_path {
         Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
         _ => {
-            let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
+            let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
                 .map(|d| d.data_local_dir().to_path_buf())
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
             data_dir
                 .join("exports")
-                .join(format!("opendeck_reconciliation_{}.{}", timestamp, ext))
+                .join(format!("saar_reconciliation_{}.{}", timestamp, ext))
         }
     };
 
@@ -1091,13 +1091,13 @@ pub fn create_encrypted_backup(
             [&ws_id],
             |row| row.get(0),
         )
-        .unwrap_or_else(|_| "OpenDeck Default Workspace".to_string());
+        .unwrap_or_else(|_| "SAAR Default Workspace".to_string());
 
-    let data_dir = directories::ProjectDirs::from("com", "theshriks", "opendeck")
+    let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
         .map(|dirs| dirs.data_local_dir().to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
-    let db_path = data_dir.join("opendeck_workspace.db");
+    let db_path = data_dir.join("saar_workspace.db");
     let blob_dir = data_dir.join("blobs");
 
     let target_archive = match destination_path {
@@ -1106,7 +1106,7 @@ pub fn create_encrypted_backup(
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
             data_dir
                 .join("backups")
-                .join(format!("opendeck_backup_{}.opendeck", timestamp))
+                .join(format!("saar_backup_{}.saar", timestamp))
         }
     };
 
@@ -1147,12 +1147,12 @@ pub fn restore_encrypted_backup(
 ) -> Result<crate::security::BackupManifest, String> {
     let base_dir = match target_data_dir {
         Some(d) if !d.trim().is_empty() => std::path::PathBuf::from(d),
-        _ => directories::ProjectDirs::from("com", "theshriks", "opendeck")
+        _ => directories::ProjectDirs::from("com", "theshriks", "saar")
             .map(|dirs| dirs.data_local_dir().to_path_buf())
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_default()),
     };
 
-    let target_db = base_dir.join("opendeck_workspace.db");
+    let target_db = base_dir.join("saar_workspace.db");
     let target_blobs = base_dir.join("blobs");
 
     crate::security::BackupService::restore_backup(

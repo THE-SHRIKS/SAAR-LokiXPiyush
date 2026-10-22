@@ -282,7 +282,7 @@ impl ReportGenerator {
                 pdf.draw_rect(50.0, 715.0, 512.0, 45.0, true, false);
 
                 pdf.set_fill_color(1.0, 1.0, 1.0); // White text
-                pdf.draw_text("F2", 16.0, 60.0, 735.0, "OPENDECK FINANCIAL INTELLIGENCE");
+                pdf.draw_text("F2", 16.0, 60.0, 735.0, "SAAR FINANCIAL INTELLIGENCE");
                 pdf.draw_text(
                     "F1",
                     10.0,
@@ -495,7 +495,7 @@ impl ReportGenerator {
             pdf.draw_line(50.0, 42.0, 562.0, 42.0);
 
             pdf.set_fill_color(0.45, 0.50, 0.55);
-            let footer_left = format!("OpenDeck Offline Intelligence | Snapshot: {snapshot_short}");
+            let footer_left = format!("SAAR Offline Intelligence | Snapshot: {snapshot_short}");
             pdf.draw_text("F1", 7.0, 50.0, 32.0, &footer_left);
 
             let footer_right = format!("Page {page_num} of {total_pages}");

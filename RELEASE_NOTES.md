@@ -1,4 +1,4 @@
-# OpenDeck v0.1.0 — Production Release Notes
+# SAAR v0.1.0 — Production Release Notes
 
 **Release Version:** v0.1.0 (General Availability)  
 **Target Environments:** Debian GNU/Linux 13 (trixie) x86_64 • Microsoft Windows 10 / 11 64-bit  
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-OpenDeck is an offline, air-gapped financial intelligence desktop workspace engineered from the ground up for strict confidentiality, mathematical auditability, and deterministic accounting. It combines an embedded SQLite ledger, an AES-256-GCM authenticated blob store, local CPU-optimized machine learning sidecars (RapidOCR + Qwen2.5-3B via llama.cpp), and an editorial desktop interface with dual-pane document evidence inspection.
+SAAR is an offline, air-gapped financial intelligence desktop workspace engineered from the ground up for strict confidentiality, mathematical auditability, and deterministic accounting. It combines an embedded SQLite ledger, an AES-256-GCM authenticated blob store, local CPU-optimized machine learning sidecars (RapidOCR + Qwen2.5-3B via llama.cpp), and an editorial desktop interface with dual-pane document evidence inspection.
 
 ---
 
@@ -35,7 +35,7 @@ OpenDeck is an offline, air-gapped financial intelligence desktop workspace engi
 ### D. Source-Traceable Exports & Encrypted Disaster Recovery
 - **Deterministic PDF 1.4 Reports:** Pure-Rust vector PDF generator formatting financial summaries, monthly cash flow charts, and reconciliation tables with SHA-256 snapshot hashes. Verified with `pdfinfo` and `pdftotext`.
 - **RFC 4180 CSV Exports:** Clean, escaped tabular data matching database records with minor-unit integer precision.
-- **Authenticated `.opendeck` Archives:** Backups are packaged into an encrypted container using Argon2id memory-hard key derivation and AES-256-GCM. Wrong passphrases or tampered bytes are rejected mathematically with zero database contamination.
+- **Authenticated `.saar` Archives:** Backups are packaged into an encrypted container using Argon2id memory-hard key derivation and AES-256-GCM. Wrong passphrases or tampered bytes are rejected mathematically with zero database contamination.
 
 ---
 
@@ -49,7 +49,7 @@ OpenDeck is an offline, air-gapped financial intelligence desktop workspace engi
 | **G3** | Financial Core | Minor-unit math, multi-pass matching, duplicate/SaaS anomaly detection, review inbox | **PASSED** |
 | **G4** | Grounded Local AI | Local llama-cli, Fact Packets, GBNF classifier, prompt injection & anti-hallucination guard | **PASSED** |
 | **G5** | Editorial Interface | Dual-resolution GUI (1280px / 960px), evidence inspector, inline correction modal | **PASSED** |
-| **G6** | Reliability & Backup | Pure-Rust PDF/CSV exports, `.opendeck` backup/restore, offline egress denial (`unshare -rn`) | **PASSED** |
+| **G6** | Reliability & Backup | Pure-Rust PDF/CSV exports, `.saar` backup/restore, offline egress denial (`unshare -rn`) | **PASSED** |
 | **G7** | Native Windows Release | Native Windows sidecars, MSVC/CMake pipelines, NSIS installer, acceptance report | **PASSED** |
 
 ---
