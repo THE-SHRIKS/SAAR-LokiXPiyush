@@ -172,6 +172,17 @@ impl DocumentOrchestrator {
                         tx_item.external_ref,
                     ],
                 )?;
+
+                let _ = tx.execute(
+                    "INSERT INTO search_index (entity_type, entity_id, workspace_id, title, content)
+                     VALUES ('TRANSACTION', ?1, ?2, ?3, ?4);",
+                    params![
+                        tx_id,
+                        workspace_id,
+                        tx_item.description,
+                        format!("{} {}", tx_item.description, tx_item.external_ref.as_deref().unwrap_or("")),
+                    ],
+                );
             }
 
             tx.execute(
@@ -257,6 +268,18 @@ impl DocumentOrchestrator {
                 "UPDATE documents SET status = 'READY', page_count = ?2 WHERE id = ?1;",
                 params![doc_id, ocr_res.page_count],
             )?;
+
+            let doc_text_summary = format!(
+                "{} {} {}",
+                normalized.vendor_name,
+                normalized.invoice_number.as_deref().unwrap_or(""),
+                file_name
+            );
+            let _ = tx.execute(
+                "INSERT INTO search_index (entity_type, entity_id, workspace_id, title, content)
+                 VALUES ('DOCUMENT', ?1, ?2, ?3, ?4);",
+                params![doc_id, workspace_id, file_name, doc_text_summary],
+            );
 
             tx.commit()?;
             normalized.fields.len()

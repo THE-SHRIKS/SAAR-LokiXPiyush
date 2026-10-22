@@ -8,6 +8,9 @@ import {
   ProposedLink,
   FinancialAnomaly,
   FinancialSummary,
+  GroundedChatResponse,
+  CategoryProposal,
+  SearchResult,
   formatMinorCurrency,
 } from "./lib/types";
 import { OpenDeckApi } from "./lib/api";
@@ -30,13 +33,17 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  Sparkles,
+  Search,
+  Tag,
+  Send,
 } from "lucide-react";
 
 export const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "documents" | "transactions" | "reconciliation" | "reports" | "settings"
+    "documents" | "transactions" | "reconciliation" | "reports" | "chat" | "settings"
   >("documents");
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -48,6 +55,33 @@ export const App: React.FC = () => {
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [isReconciling, setIsReconciling] = useState<boolean>(false);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+
+  // Grounded Chat state
+  const [chatMessages, setChatMessages] = useState<
+    Array<{
+      sender: "user" | "assistant";
+      text: string;
+      response?: GroundedChatResponse;
+      timestamp: string;
+    }>
+  >([
+    {
+      sender: "assistant",
+      text: "OpenDeck Grounded Financial Assistant is online. All inference runs locally via Qwen2.5-3B on AVX2 CPU with deterministic greedy decoding and provenance citation enforcement. Ask any question about your local financial records.",
+      timestamp: new Date().toLocaleTimeString(),
+    },
+  ]);
+  const [chatInput, setChatInput] = useState<string>("");
+  const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  // Category Proposals state
+  const [proposals, setProposals] = useState<Record<string, CategoryProposal>>({});
+  const [classifyingTxId, setClassifyingTxId] = useState<string | null>(null);
 
   // Authentication & Workspace creation state
   const [passphrase, setPassphrase] = useState<string>("");
@@ -197,6 +231,99 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+
+    const query = chatInput.trim();
+    setChatInput("");
+    const userMsg = {
+      sender: "user" as const,
+      text: query,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setIsChatLoading(true);
+
+    try {
+      const res = await OpenDeckApi.chatGrounded(query);
+      const assistantMsg = {
+        sender: "assistant" as const,
+        text: res.answer,
+        response: res,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: `Local inference error: ${msg}`,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleSearch = async (term: string) => {
+    setSearchQuery(term);
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await OpenDeckApi.searchWorkspace(term.trim());
+      setSearchResults(results);
+    } catch (err) {
+      console.error("Search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectSearchResult = (res: SearchResult) => {
+    setSearchQuery("");
+    setSearchResults([]);
+    if (res.entityType === "DOCUMENT" || res.entityType === "INVOICE") {
+      setActiveTab("documents");
+      selectDocument(res.entityId);
+    } else if (res.entityType === "TRANSACTION") {
+      setActiveTab("transactions");
+    }
+  };
+
+  const handleClassifyTransaction = async (txId: string) => {
+    setClassifyingTxId(txId);
+    try {
+      const proposal = await OpenDeckApi.classifyTransaction(txId);
+      setProposals((prev) => ({ ...prev, [txId]: proposal }));
+    } catch (err) {
+      console.error("Classification error:", err);
+    } finally {
+      setClassifyingTxId(null);
+    }
+  };
+
+  const handleApproveCategory = async (txId: string) => {
+    const proposal = proposals[txId];
+    if (!proposal) return;
+    try {
+      await OpenDeckApi.approveCategory(proposal.id);
+      setProposals((prev) => ({
+        ...prev,
+        [txId]: { ...proposal, status: "APPROVED" },
+      }));
+      await refreshData();
+    } catch (err) {
+      console.error("Approve category error:", err);
+    }
+  };
+
   return (
     <div className="app-container">
       {/* Editorial Sidebar */}
@@ -241,6 +368,14 @@ export const App: React.FC = () => {
           </div>
 
           <div
+            className={`nav-item ${activeTab === "chat" ? "active" : ""}`}
+            onClick={() => setActiveTab("chat")}
+          >
+            <Sparkles size={16} />
+            <span>Grounded AI Chat</span>
+          </div>
+
+          <div
             className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
             onClick={() => setActiveTab("settings")}
           >
@@ -275,6 +410,43 @@ export const App: React.FC = () => {
               </div>
             )}
           </div>
+
+          {workspace && (
+            <div className="topbar-search-container">
+              {isSearching ? (
+                <RefreshCw size={14} className="topbar-search-icon spin" />
+              ) : (
+                <Search size={14} className="topbar-search-icon" />
+              )}
+              <input
+                type="text"
+                placeholder="FTS5 Fast Search across documents, transactions & invoices..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="topbar-search-input"
+              />
+              {searchResults.length > 0 && (
+                <div className="search-dropdown-menu">
+                  {searchResults.map((res, idx) => (
+                    <div
+                      key={idx}
+                      className="search-dropdown-item"
+                      onClick={() => handleSelectSearchResult(res)}
+                    >
+                      <div className="search-item-header">
+                        <span className="search-item-type">{res.entityType}</span>
+                        <span className="search-item-title">{res.title}</span>
+                      </div>
+                      <div
+                        className="search-item-snippet"
+                        dangerouslySetInnerHTML={{ __html: res.snippet }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="topbar-actions">
             {workspace && (
@@ -571,33 +743,70 @@ export const App: React.FC = () => {
                           <th>Description</th>
                           <th>Reference</th>
                           <th>Amount</th>
-                          <th>Currency</th>
+                          <th>Category</th>
                           <th>Status</th>
+                          <th>AI Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {transactions.map((tx) => (
-                          <tr key={tx.id}>
-                            <td className="font-mono">{tx.postedDate}</td>
-                            <td>{tx.description}</td>
-                            <td className="font-mono text-muted">{tx.externalRef || "—"}</td>
-                            <td
-                              className={`font-mono font-medium ${
-                                tx.amountMinor < 0 ? "amount-debit" : "amount-credit"
-                              }`}
-                            >
-                              {formatMinorCurrency(tx.amountMinor, tx.currency)}
-                            </td>
-                            <td>
-                              <span className="pill-currency">{tx.currency}</span>
-                            </td>
-                            <td>
-                              <span className={`status-pill status-${tx.reviewState.toLowerCase()}`}>
-                                {tx.reviewState}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {transactions.map((tx) => {
+                          const proposal = proposals[tx.id];
+                          return (
+                            <tr key={tx.id}>
+                              <td className="font-mono">{tx.postedDate}</td>
+                              <td>{tx.description}</td>
+                              <td className="font-mono text-muted">{tx.externalRef || "—"}</td>
+                              <td
+                                className={`font-mono font-medium ${
+                                  tx.amountMinor < 0 ? "amount-debit" : "amount-credit"
+                                }`}
+                              >
+                                {formatMinorCurrency(tx.amountMinor, tx.currency)}
+                              </td>
+                              <td>
+                                {proposal ? (
+                                  <span className="category-tag">
+                                    <Tag size={12} />
+                                    {proposal.suggestedCategory}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted text-small">Unclassified</span>
+                                )}
+                              </td>
+                              <td>
+                                <span className={`status-pill status-${tx.reviewState.toLowerCase()}`}>
+                                  {tx.reviewState}
+                                </span>
+                              </td>
+                              <td>
+                                {proposal ? (
+                                  proposal.status === "APPROVED" ? (
+                                    <span className="badge-match badge-exact">Approved</span>
+                                  ) : (
+                                    <div className="category-proposal-box">
+                                      <button
+                                        className="btn-action btn-approve"
+                                        onClick={() => handleApproveCategory(tx.id)}
+                                      >
+                                        <Check size={12} />
+                                        <span>Approve ({Math.round(proposal.confidenceScore * 100)}%)</span>
+                                      </button>
+                                    </div>
+                                  )
+                                ) : (
+                                  <button
+                                    className="btn-classify"
+                                    onClick={() => handleClassifyTransaction(tx.id)}
+                                    disabled={classifyingTxId === tx.id}
+                                  >
+                                    <Sparkles size={12} className={classifyingTxId === tx.id ? "spin" : ""} />
+                                    <span>{classifyingTxId === tx.id ? "Classifying..." : "Auto-Classify"}</span>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -804,6 +1013,136 @@ export const App: React.FC = () => {
                       </table>
                     )}
                   </div>
+                </div>
+              )}
+
+              {activeTab === "chat" && (
+                <div className="chat-container">
+                  <div className="chat-header">
+                    <div>
+                      <h4>Local Grounded Financial Intelligence</h4>
+                      <span className="text-small text-muted">
+                        Air-gapped Qwen2.5-3B • Fact-Packet Provenance Citations • Anti-Hallucination Guard
+                      </span>
+                    </div>
+                    <div className="chat-model-badge">
+                      <Sparkles size={13} />
+                      <span>Deterministic Temp 0.0 • AVX2 CPU</span>
+                    </div>
+                  </div>
+
+                  <div className="chat-messages-area">
+                    {chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`chat-message-row ${msg.sender}`}>
+                        {msg.sender === "user" ? (
+                          <div className="chat-bubble-user">{msg.text}</div>
+                        ) : (
+                          <div className="chat-bubble-assistant">
+                            {msg.response && (
+                              <div className="chat-intent-tag">{msg.response.intent}</div>
+                            )}
+                            <div>{msg.text}</div>
+
+                            {msg.response?.citations && msg.response.citations.length > 0 && (
+                              <div className="chat-citations-row">
+                                <span className="text-small text-muted">Sources Cited:</span>
+                                {msg.response.citations.map((c, cIdx) => (
+                                  <span key={cIdx} className="citation-pill">
+                                    [{c}]
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {msg.response && (
+                              <div
+                                className={`verification-note ${
+                                  msg.response.grounded ? "grounded" : "warning"
+                                }`}
+                              >
+                                {msg.response.grounded ? (
+                                  <CheckCircle2 size={13} />
+                                ) : (
+                                  <AlertCircle size={13} />
+                                )}
+                                <span>{msg.response.verificationNote}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <span
+                          className="text-small text-muted"
+                          style={{
+                            marginTop: 4,
+                            alignSelf: msg.sender === "user" ? "flex-end" : "flex-start",
+                          }}
+                        >
+                          {msg.timestamp}
+                        </span>
+                      </div>
+                    ))}
+
+                    {isChatLoading && (
+                      <div className="chat-message-row assistant">
+                        <div className="chat-bubble-assistant">
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <RefreshCw size={14} className="spin" />
+                            <span>Synthesizing fact-packet answer on local CPU cores...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="chat-suggestions">
+                    <span
+                      className="text-small text-muted"
+                      style={{ alignSelf: "center", marginRight: 4 }}
+                    >
+                      Suggestions:
+                    </span>
+                    <button
+                      className="suggestion-chip"
+                      onClick={() =>
+                        setChatInput("What was the invoice total for CloudHosting Corp?")
+                      }
+                    >
+                      "Invoice total for CloudHosting Corp?"
+                    </button>
+                    <button
+                      className="suggestion-chip"
+                      onClick={() => setChatInput("What were my total expenses in September?")}
+                    >
+                      "Total expenses in September?"
+                    </button>
+                    <button
+                      className="suggestion-chip"
+                      onClick={() =>
+                        setChatInput("Are there any unlinked transactions or duplicates?")
+                      }
+                    >
+                      "Unlinked transactions or duplicates?"
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSendMessage} className="chat-input-row">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Ask questions about your financial records (e.g. totals, vendors, invoices)..."
+                      className="chat-text-input"
+                      disabled={isChatLoading}
+                    />
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={isChatLoading || !chatInput.trim()}
+                    >
+                      <Send size={14} />
+                      <span>Query AI</span>
+                    </button>
+                  </form>
                 </div>
               )}
 

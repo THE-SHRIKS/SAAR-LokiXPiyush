@@ -684,3 +684,126 @@ pub fn get_financial_summary(
 
     Ok(crate::finance::aggregates::FinancialAggregator::compute_summary(&transactions, &currency))
 }
+
+#[tauri::command]
+pub fn chat_grounded(
+    state: State<AppState>,
+    query: String,
+) -> Result<crate::ai::GroundedChatResponse, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    // Defense: Detect adversarial prompt injection
+    if crate::ai::AdversarialDefense::contains_prompt_injection(&query) {
+        return Ok(crate::ai::GroundedChatResponse {
+            answer: "Adversarial prompt injection detected and quarantined. The query was rejected by local safety boundaries.".to_string(),
+            intent: crate::ai::QueryIntent::GeneralFinancial,
+            citations: Vec::new(),
+            grounded: false,
+            verification_note: "Quarantined by AdversarialDefense engine.".to_string(),
+        });
+    }
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    // Build fact packet from active workspace records
+    let fact_packet = crate::ai::GroundingEngine::build_fact_packet(db.conn_ref(), &ws_id, &query, "USD")
+        .map_err(|e| format!("Failed to build fact packet: {}", e))?;
+    drop(db_guard);
+
+    let (system_prompt, user_prompt) = crate::ai::GroundingEngine::build_prompts(&fact_packet);
+
+    let llm_guard = state.llm_engine.lock().unwrap();
+    let llm = llm_guard.as_ref().ok_or("Local LLM engine uninitialized.")?;
+
+    let raw_answer = llm
+        .generate(&system_prompt, &user_prompt, None)
+        .map_err(|e| format!("Local model inference failed: {}", e))?;
+    drop(llm_guard);
+
+    Ok(crate::ai::GroundingEngine::validate_and_parse_response(&fact_packet, &raw_answer))
+}
+
+#[tauri::command]
+pub fn classify_transaction(
+    state: State<AppState>,
+    transaction_id: String,
+) -> Result<crate::ai::CategoryProposal, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let (desc, amount_minor, currency): (String, i64, String) = db
+        .conn_ref()
+        .query_row(
+            "SELECT description, amount_minor, currency FROM transactions WHERE id = ?1 AND workspace_id = ?2;",
+            params![transaction_id, ws_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .map_err(|e| format!("Transaction not found: {}", e))?;
+
+    let llm_guard = state.llm_engine.lock().unwrap();
+    let llm = llm_guard.as_ref().ok_or("Local LLM engine uninitialized.")?;
+
+    let proposal = crate::ai::TransactionClassifier::classify_transaction(
+        llm,
+        &transaction_id,
+        &desc,
+        amount_minor,
+        &currency,
+    )?;
+    drop(llm_guard);
+
+    crate::ai::TransactionClassifier::save_proposal(db.conn_ref(), &ws_id, &proposal)
+        .map_err(|e| format!("Failed to save category proposal: {}", e))?;
+
+    Ok(proposal)
+}
+
+#[tauri::command]
+pub fn approve_category(
+    state: State<AppState>,
+    proposal_id: String,
+) -> Result<(), String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    crate::ai::TransactionClassifier::approve_category(db.conn_ref(), &ws_id, &proposal_id)
+        .map_err(|e| e.to_string())?;
+
+    let audit_json = serde_json::json!({
+        "proposal_id": proposal_id,
+        "action": "APPROVE_CATEGORY"
+    }).to_string();
+
+    db.record_audit_event(&ws_id, "transaction_category", &proposal_id, "APPROVE_CATEGORY", &audit_json)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn search_workspace(
+    state: State<AppState>,
+    query: String,
+) -> Result<Vec<crate::ai::SearchResult>, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    crate::ai::SearchEngine::search(db.conn_ref(), &ws_id, &query, 20)
+        .map_err(|e| e.to_string())
+}

@@ -1,6 +1,6 @@
 use rusqlite::{Connection, Result, Transaction};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 2;
+pub const CURRENT_SCHEMA_VERSION: i32 = 3;
 
 pub struct Migrator;
 
@@ -51,6 +51,58 @@ impl Migrator {
             )?;
             tx.commit()?;
         }
+
+        if current_version < 3 {
+            let tx = conn.transaction()?;
+            Self::apply_migration_v3(&tx)?;
+            tx.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (3, datetime('now'));",
+                [],
+            )?;
+            tx.commit()?;
+        }
+
+        Ok(())
+    }
+
+    fn apply_migration_v3(tx: &Transaction) -> Result<()> {
+        // 10. Local Full-Text Search (FTS5) Virtual Index
+        tx.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+                entity_type,
+                entity_id,
+                workspace_id UNINDEXED,
+                title,
+                content
+            );",
+            [],
+        )?;
+
+        // 11. Model-Assisted Classification Suggestions
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS transaction_categories (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                transaction_id TEXT NOT NULL,
+                category TEXT NOT NULL,
+                confidence_score REAL NOT NULL,
+                rationale TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PROPOSED',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cat_tx ON transaction_categories(transaction_id);",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cat_ws ON transaction_categories(workspace_id);",
+            [],
+        )?;
 
         Ok(())
     }
@@ -281,5 +333,15 @@ mod tests {
         );
 
         assert!(res.is_err(), "Foreign key constraint failure must reject invalid workspace reference");
+    }
+
+    #[test]
+    fn test_fts5_virtual_table_support() {
+        let conn = Connection::open_in_memory().unwrap();
+        let res = conn.execute(
+            "CREATE VIRTUAL TABLE test_fts USING fts5(title, content);",
+            [],
+        );
+        assert!(res.is_ok(), "FTS5 virtual table must be supported: {:?}", res);
     }
 }

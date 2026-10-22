@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 4 — Grounded Local AI  
-**Active Task:** Phase 3 (100% Complete, Gate G3 Passed) → P4-01 (In Progress)  
+**Current Phase:** Phase 5 — Editorial Interface & Integrated Workflows  
+**Active Task:** Phase 4 (100% Complete, Gate G4 Passed) → P5-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -14,7 +14,7 @@
 | **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | **PASSED & SIGNED** | [`Docs/ADR/0005-native-shell-and-encrypted-storage.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0005-native-shell-and-encrypted-storage.md)<br>Screenshot: [`tests/opendeck_debian_p1_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p1_verification.png)<br>Tests: [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs) |
 | **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | **PASSED & SIGNED** | [`Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md)<br>Screenshot: [`tests/opendeck_debian_p2_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p2_verification.png)<br>Tests: [`src-tauri/tests/p2_ingestion_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p2_ingestion_verification.rs) |
 | **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | **PASSED & SIGNED** | [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md)<br>Screenshot: [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png)<br>Tests: [`src-tauri/tests/p3_financial_core_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p3_financial_core_verification.rs) |
-| **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | PENDING | |
+| **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | **PASSED & SIGNED** | [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md)<br>Screenshot: [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png)<br>Tests: [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs) |
 | **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | PENDING | |
 | **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | PENDING | |
 | **G7** | Native Windows Release | Native Windows sidecars, installer, offline full regression sign-off | PENDING | |
@@ -75,12 +75,17 @@
 - [x] **P3-05** Focused expense/income aggregates and month-on-month comparisons.
   - **Evidence:** [`src-tauri/src/finance/aggregates.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/aggregates.rs), monthly income, expense, net cash flow, MoM expense growth calculations verified against independent manual arithmetic; unit test and integration test passing, [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md), screenshot [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png).
 
-### Phase 4 — Local AI / Chat
-- [ ] **P4-01** Package llama.cpp runtime and Qwen3 weights via hash-checked local pack; lifecycle+CPU fallback.
-- [ ] **P4-02** Implement allowlisted intent parser, typed fact packets and source-citation renderer.
-- [ ] **P4-03** Model-assisted classification suggestions; restrict categories and approvals.
-- [ ] **P4-04** Natural language search via local FTS, optional embeddings only if benchmarked.
-- [ ] **P4-05** Guard against prompt injection, unapproved DB writes, hallucinated totals.
+### Phase 4 — Local AI / Chat (Completed)
+- [x] **P4-01** Package llama.cpp runtime and Qwen3 weights via hash-checked local pack; lifecycle+CPU fallback.
+  - **Evidence:** [`src-tauri/src/ai/llm_engine.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/llm_engine.rs), SHA-256 integrity verification (`8eff4e...`) matching `models/model-manifest.json`, AVX2 CPU execution (`-ngl 0`, `-t 2`, `--temp 0.0`), concurrent stdio pipe reading preventing OS deadlocks, integration test [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs).
+- [x] **P4-02** Implement allowlisted intent parser, typed fact packets and source-citation renderer.
+  - **Evidence:** [`src-tauri/src/ai/grounding.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/grounding.rs), intent classifier, compact bounded fact extraction, `[inv:ID]` / `[tx:ID]` provenance citation parser, verification badge in GUI, integration test [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs).
+- [x] **P4-03** Model-assisted classification suggestions; restrict categories and approvals.
+  - **Evidence:** [`src-tauri/src/ai/classifier.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/classifier.rs), llama.cpp GBNF formal grammar enforcing 7 allowed business categories, approval UI in Ledger view, immutable `audit_log` records, integration test [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs).
+- [x] **P4-04** Natural language search via local FTS, optional embeddings only if benchmarked.
+  - **Evidence:** [`src-tauri/src/ai/search.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/search.rs), SQLite FTS5 `search_index` virtual table (Porter/Unicode61 tokenizer), automatic indexing upon ingestion, sub-millisecond BM25 keyword matching with `<mark>` highlight snippets, interactive search bar in desktop header, integration test [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs).
+- [x] **P4-05** Guard against prompt injection, unapproved DB writes, hallucinated totals.
+  - **Evidence:** [`src-tauri/src/ai/defense.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ai/defense.rs), adversarial prompt injection pattern interceptor (jailbreaks, instruction overrides, fence escapes), numerical hallucination guard validating generated figures against authorized minor units, verified in [`src-tauri/tests/p4_local_ai_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p4_local_ai_verification.rs), [`Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0008-local-ai-and-grounded-chat-architecture.md), screenshot [`tests/opendeck_debian_p4_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p4_verification.png).
 
 ### Phase 5 — Editorial Interface and Integrated Workflows
 - [ ] **P5-01** Implement polished conversation workspace and model/import/empty/error states.

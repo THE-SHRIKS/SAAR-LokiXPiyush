@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod commands;
 pub mod db;
 pub mod finance;
@@ -6,6 +7,7 @@ pub mod security;
 pub mod state;
 pub mod supervisor;
 
+use ai::{LlmConfig, LlmEngine};
 use db::Database;
 use ingestion::OcrClient;
 use security::BlobStore;
@@ -35,6 +37,10 @@ pub fn run() {
         *app_state.ocr_client.lock().unwrap() = Some(ocr);
     }
 
+    if let Ok(llm) = LlmEngine::new(LlmConfig::default()) {
+        *app_state.llm_engine.lock().unwrap() = Some(llm);
+    }
+
     tauri::Builder::default()
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
@@ -53,6 +59,10 @@ pub fn run() {
             commands::reject_reconciliation_link,
             commands::correct_transaction,
             commands::get_financial_summary,
+            commands::chat_grounded,
+            commands::classify_transaction,
+            commands::approve_category,
+            commands::search_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenDeck application");

@@ -180,3 +180,36 @@ export interface ReconciliationResult {
   anomalies: FinancialAnomaly[];
 }
 
+export type QueryIntent =
+  | "FINANCIAL_SUMMARY"
+  | "DOCUMENT_QUERY"
+  | "RECONCILIATION_STATUS"
+  | "TRANSACTION_SEARCH"
+  | "GENERAL_FINANCIAL";
+
+export interface GroundedChatResponse {
+  answer: string;
+  intent: QueryIntent;
+  citations: string[];
+  grounded: boolean;
+  verificationNote: string;
+}
+
+export interface CategoryProposal {
+  id: string;
+  transactionId: string;
+  suggestedCategory: string;
+  confidenceScore: number;
+  rationale: string;
+  status: "PROPOSED" | "APPROVED" | "REJECTED";
+  createdAt: string;
+}
+
+export interface SearchResult {
+  entityType: "DOCUMENT" | "TRANSACTION" | "INVOICE";
+  entityId: string;
+  title: string;
+  snippet: string;
+  score: number;
+}
+

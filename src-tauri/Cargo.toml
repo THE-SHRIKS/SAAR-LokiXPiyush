@@ -31,6 +31,12 @@ rusqlite = { version = "0.33", features = ["bundled"] }
 [profile.dev]
 incremental = true
 
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.dev.package.argon2]
+opt-level = 3
+
 [profile.release]
 codegen-units = 1
 lto = true

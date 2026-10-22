@@ -15,6 +15,9 @@ import {
   FinancialAnomaly,
   FinancialSummary,
   ReconciliationResult,
+  GroundedChatResponse,
+  CategoryProposal,
+  SearchResult,
 } from "./types";
 
 export class OpenDeckApi {
@@ -143,5 +146,33 @@ export class OpenDeckApi {
    */
   static async getFinancialSummary(currency = "USD"): Promise<FinancialSummary> {
     return await invoke<FinancialSummary>("get_financial_summary", { currency });
+  }
+
+  /**
+   * Local grounded Q&A with Fact Packet citations and hallucination verification.
+   */
+  static async chatGrounded(query: string): Promise<GroundedChatResponse> {
+    return await invoke<GroundedChatResponse>("chat_grounded", { query });
+  }
+
+  /**
+   * Local GBNF-constrained expense & revenue category proposal.
+   */
+  static async classifyTransaction(transactionId: string): Promise<CategoryProposal> {
+    return await invoke<CategoryProposal>("classify_transaction", { transactionId });
+  }
+
+  /**
+   * Approves a transaction category classification with immutable audit logging.
+   */
+  static async approveCategory(proposalId: string): Promise<void> {
+    return await invoke<void>("approve_category", { proposalId });
+  }
+
+  /**
+   * Fast full-text search across all documents and transactions via SQLite FTS5.
+   */
+  static async searchWorkspace(query: string): Promise<SearchResult[]> {
+    return await invoke<SearchResult[]>("search_workspace", { query });
   }
 }
