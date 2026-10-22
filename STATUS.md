@@ -1,7 +1,7 @@
 # Project Status Ledger — OpenDeck
 
-**Current Phase:** Phase 3 — Financial Core  
-**Active Task:** Phase 2 (100% Complete, Gate G2 Passed) → P3-01 (In Progress)  
+**Current Phase:** Phase 4 — Grounded Local AI  
+**Active Task:** Phase 3 (100% Complete, Gate G3 Passed) → P4-01 (In Progress)  
 **Last Updated:** 2026-10-22  
 
 ---
@@ -13,7 +13,7 @@
 | **G0** | Feasibility, Environment & Runtime Baseline | Toolchain inspection, native Tauri 2 desktop window, local OCR on real scan, offline LLM GBNF inference on CPU, model licenses, threat model + fixtures | **PASSED & SIGNED** | [`Docs/ADR/0001-environment-and-architecture-constraints.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0001-environment-and-architecture-constraints.md)<br>[`Docs/ADR/0002-threat-model-and-fixture-registry.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0002-threat-model-and-fixture-registry.md)<br>[`Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0003-desktop-shell-and-ocr-feasibility.md)<br>[`Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0004-local-model-runtime-and-sidecar-specification.md) |
 | **G1** | Native Shell + Storage | Desktop launch on Debian, encrypted workspace key lifecycle, SQLCipher migrations, no network | **PASSED & SIGNED** | [`Docs/ADR/0005-native-shell-and-encrypted-storage.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0005-native-shell-and-encrypted-storage.md)<br>Screenshot: [`tests/opendeck_debian_p1_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p1_verification.png)<br>Tests: [`src-tauri/tests/p1_native_storage_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p1_native_storage_verification.rs) |
 | **G2** | Document Ingestion | Real files to extracted records, OCR sidecar worker, page/field provenance | **PASSED & SIGNED** | [`Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0006-document-ingestion-and-sidecar-pipeline.md)<br>Screenshot: [`tests/opendeck_debian_p2_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p2_verification.png)<br>Tests: [`src-tauri/tests/p2_ingestion_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p2_ingestion_verification.rs) |
-| **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | PENDING | |
+| **G3** | Financial Core | Currency math, matching/reconciliation, duplicate detection, review lifecycle | **PASSED & SIGNED** | [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md)<br>Screenshot: [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png)<br>Tests: [`src-tauri/tests/p3_financial_core_verification.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/tests/p3_financial_core_verification.rs) |
 | **G4** | Grounded Local AI | Offline llama.cpp in app, fact packets, source citations, injection defense | PENDING | |
 | **G5** | Editorial Interface | Conversation, evidence inspector, import, review, reports, settings, responsive | PENDING | |
 | **G6** | Reliability & Backup | Traceable exports, encrypted backup/restore, offline egress denial | PENDING | |
@@ -63,12 +63,17 @@
 - [x] **P2-06** Import dedupe, invalid/unsupported file handling, malicious file boundaries.
   - **Evidence:** [`src-tauri/src/ingestion/orchestrator.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/ingestion/orchestrator.rs), content-addressed SHA-256 deduplication, magic bytes validation, CSV row bomb rejection (`test_csv_bomb_rejection`), corrupted PDF safety check in `test_p2_full_document_and_statement_ingestion_pipeline`.
 
-### Phase 3 — Financial Core / Review
-- [ ] **P3-01** Exact currency arithmetic, normalized transactions/invoices.
-- [ ] **P3-02** Deterministic invoice/payment matching, splits and mismatch explanations.
-- [ ] **P3-03** Duplicate candidates and unmatched candidates with provenance.
-- [ ] **P3-04** Review inbox with approve/reject/correct and audit.
-- [ ] **P3-05** Focused expense/income aggregates and month-on-month comparisons.
+### Phase 3 — Financial Core / Review (Completed)
+- [x] **P3-01** Exact currency arithmetic, normalized transactions/invoices.
+  - **Evidence:** [`src-tauri/src/finance/money.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/money.rs), signed 64-bit integer minor units, checked arithmetic preventing overflow/underflow, currency mismatch protection, JPY non-fractional unit support, credit note refund deductions; 5 unit tests passing.
+- [x] **P3-02** Deterministic invoice/payment matching, splits and mismatch explanations.
+  - **Evidence:** [`src-tauri/src/finance/matching.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/matching.rs), multi-pass rules (Pass 1 Exact 1.0 confidence, Pass 2 Fuzzy token 0.85, Pass 3 Candidate split, Pass 4 Proximity 0.50), structured evidence explanations, unit tests and integration test `test_p3_full_financial_core_and_reconciliation_verification`.
+- [x] **P3-03** Duplicate candidates and unmatched candidates with provenance.
+  - **Evidence:** [`src-tauri/src/finance/anomaly.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/anomaly.rs), duplicate invoice detection, duplicate billing within 3 days, high-value unlinked transaction flags, recurring monthly SaaS subscription recognition (25-35 days window) suppressing false positives; unit tests passing.
+- [x] **P3-04** Review inbox with approve/reject/correct and audit.
+  - **Evidence:** [`src-tauri/src/finance/review.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/review.rs), review state transitions (`PROPOSED` -> `APPROVED` / `REJECTED`), manual transaction description corrections, append-only `audit_log` records with full JSON state captures; unit test and integration test passing.
+- [x] **P3-05** Focused expense/income aggregates and month-on-month comparisons.
+  - **Evidence:** [`src-tauri/src/finance/aggregates.rs`](file:///home/theshriksloki/OpenDeck/src-tauri/src/finance/aggregates.rs), monthly income, expense, net cash flow, MoM expense growth calculations verified against independent manual arithmetic; unit test and integration test passing, [`Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md`](file:///home/theshriksloki/OpenDeck/Docs/ADR/0007-financial-core-and-deterministic-reconciliation.md), screenshot [`tests/opendeck_debian_p3_verification.png`](file:///home/theshriksloki/OpenDeck/tests/opendeck_debian_p3_verification.png).
 
 ### Phase 4 — Local AI / Chat
 - [ ] **P4-01** Package llama.cpp runtime and Qwen3 weights via hash-checked local pack; lifecycle+CPU fallback.

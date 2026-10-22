@@ -5,6 +5,9 @@ import {
   DocumentRecord,
   TransactionRecord,
   DocumentDetails,
+  ProposedLink,
+  FinancialAnomaly,
+  FinancialSummary,
   formatMinorCurrency,
 } from "./lib/types";
 import { OpenDeckApi } from "./lib/api";
@@ -21,17 +24,30 @@ import {
   AlertCircle,
   Clock,
   ChevronRight,
+  GitCompare,
+  BarChart3,
+  Check,
+  X,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 export const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<"documents" | "transactions" | "settings">(
-    "documents"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "documents" | "transactions" | "reconciliation" | "reports" | "settings"
+  >("documents");
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [selectedDocDetails, setSelectedDocDetails] = useState<DocumentDetails | null>(null);
+
+  // Reconciliation & Review state
+  const [reconciliationLinks, setReconciliationLinks] = useState<ProposedLink[]>([]);
+  const [anomalies, setAnomalies] = useState<FinancialAnomaly[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [isReconciling, setIsReconciling] = useState<boolean>(false);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   // Authentication & Workspace creation state
   const [passphrase, setPassphrase] = useState<string>("");
@@ -57,6 +73,12 @@ export const App: React.FC = () => {
       setDocuments(docs);
       const txs = await OpenDeckApi.listTransactions();
       setTransactions(txs);
+      const links = await OpenDeckApi.listReconciliationLinks();
+      setReconciliationLinks(links);
+      const anoms = await OpenDeckApi.listAnomalies();
+      setAnomalies(anoms);
+      const summary = await OpenDeckApi.getFinancialSummary("USD");
+      setFinancialSummary(summary);
     } catch (e) {
       console.error("Refresh failed:", e);
     }
@@ -88,6 +110,9 @@ export const App: React.FC = () => {
     setWorkspace(null);
     setDocuments([]);
     setTransactions([]);
+    setReconciliationLinks([]);
+    setAnomalies([]);
+    setFinancialSummary(null);
     setSelectedDocDetails(null);
     setPassphrase("");
   };
@@ -105,7 +130,6 @@ export const App: React.FC = () => {
           type: "success",
         });
         await refreshData();
-        // Automatically select newly ingested document
         const details = await OpenDeckApi.getDocumentDetails(res.documentId);
         setSelectedDocDetails(details);
       } else {
@@ -120,6 +144,47 @@ export const App: React.FC = () => {
     } finally {
       setIsImporting(false);
       setImportPath("");
+    }
+  };
+
+  const handleRunReconciliation = async () => {
+    setIsReconciling(true);
+    setReviewMessage("Running deterministic matching rules & anomaly detection...");
+    try {
+      const res = await OpenDeckApi.runReconciliation();
+      setReconciliationLinks(res.links);
+      setAnomalies(res.anomalies);
+      setReviewMessage(
+        `Reconciliation complete: ${res.links.length} proposed links found, ${res.anomalies.length} anomalies flagged.`
+      );
+      await refreshData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setReviewMessage(`Reconciliation failed: ${msg}`);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
+  const handleApproveLink = async (linkId: string) => {
+    try {
+      await OpenDeckApi.approveReconciliationLink(linkId);
+      setReviewMessage("Match link approved and audit trail recorded.");
+      await refreshData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setReviewMessage(`Approval failed: ${msg}`);
+    }
+  };
+
+  const handleRejectLink = async (linkId: string) => {
+    try {
+      await OpenDeckApi.rejectReconciliationLink(linkId, "User rejected match suggestion");
+      setReviewMessage("Match link rejected and logged to audit trail.");
+      await refreshData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setReviewMessage(`Rejection failed: ${msg}`);
     }
   };
 
@@ -155,7 +220,24 @@ export const App: React.FC = () => {
             onClick={() => setActiveTab("transactions")}
           >
             <Database size={16} />
-            <span>Ledger Transactions</span>
+            <span>Ledger Postings</span>
+          </div>
+
+          <div
+            className={`nav-item ${activeTab === "reconciliation" ? "active" : ""}`}
+            onClick={() => setActiveTab("reconciliation")}
+          >
+            <GitCompare size={16} />
+            <span>Reconciliation & Inbox</span>
+            {anomalies.length > 0 && <span className="nav-badge">{anomalies.length}</span>}
+          </div>
+
+          <div
+            className={`nav-item ${activeTab === "reports" ? "active" : ""}`}
+            onClick={() => setActiveTab("reports")}
+          >
+            <BarChart3 size={16} />
+            <span>Financial Reports</span>
           </div>
 
           <div
@@ -412,10 +494,7 @@ export const App: React.FC = () => {
                           <div className="detail-summary-card">
                             <div className="summary-label">Parsed Total</div>
                             <div className="summary-amount">
-                              {formatMinorCurrency(
-                                selectedDocDetails.invoiceTotalMinor,
-                                "USD" // display currency
-                              )}
+                              {formatMinorCurrency(selectedDocDetails.invoiceTotalMinor, "USD")}
                             </div>
                           </div>
                         )}
@@ -513,7 +592,7 @@ export const App: React.FC = () => {
                               <span className="pill-currency">{tx.currency}</span>
                             </td>
                             <td>
-                              <span className="status-pill status-unreviewed">
+                              <span className={`status-pill status-${tx.reviewState.toLowerCase()}`}>
                                 {tx.reviewState}
                               </span>
                             </td>
@@ -522,6 +601,209 @@ export const App: React.FC = () => {
                       </tbody>
                     </table>
                   )}
+                </div>
+              )}
+
+              {activeTab === "reconciliation" && (
+                <div className="reconciliation-view">
+                  <div className="reconcile-toolbar">
+                    <div className="toolbar-info">
+                      <h4>Deterministic Reconciliation Inbox</h4>
+                      <span className="text-small text-muted">
+                        Automated two-tier matching engine with explainability and anomaly guards
+                      </span>
+                    </div>
+                    <button
+                      className="btn-primary"
+                      onClick={handleRunReconciliation}
+                      disabled={isReconciling}
+                    >
+                      <RefreshCw size={14} className={isReconciling ? "spin" : ""} />
+                      <span>{isReconciling ? "Matching..." : "Run Reconciliation"}</span>
+                    </button>
+                  </div>
+
+                  {reviewMessage && (
+                    <div className="message-banner message-info">
+                      <Clock size={16} />
+                      <span>{reviewMessage}</span>
+                    </div>
+                  )}
+
+                  {/* Anomaly Alerts Section */}
+                  {anomalies.length > 0 && (
+                    <div className="anomaly-section">
+                      <div className="section-title">
+                        <AlertTriangle size={16} className="icon-amber" />
+                        <h5>Detected Financial Anomalies ({anomalies.length})</h5>
+                      </div>
+                      <div className="anomaly-cards">
+                        {anomalies.map((anom) => (
+                          <div key={anom.id} className={`anomaly-card severity-${anom.severity.toLowerCase()}`}>
+                            <div className="anomaly-meta">
+                              <span className="badge-severity">{anom.severity}</span>
+                              <span className="font-mono text-small">{anom.anomalyType}</span>
+                            </div>
+                            <div className="anomaly-desc">{anom.description}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Proposed Matches Inbox */}
+                  <div className="links-section">
+                    <h5>Proposed Matches ({reconciliationLinks.length})</h5>
+                    {reconciliationLinks.length === 0 ? (
+                      <div className="empty-state">
+                        <GitCompare size={36} className="text-muted" />
+                        <p>No match proposals currently in inbox.</p>
+                        <span className="text-small">
+                          Click "Run Reconciliation" to match invoices against ledger transactions.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="link-cards">
+                        {reconciliationLinks.map((link) => (
+                          <div key={link.id} className="link-card">
+                            <div className="link-card-header">
+                              <div className="match-badges">
+                                <span className={`badge-match badge-${link.matchType.toLowerCase()}`}>
+                                  {link.matchType}
+                                </span>
+                                <span className="badge-score">
+                                  {(link.confidenceScore * 100).toFixed(0)}% Confidence
+                                </span>
+                                <span className={`status-pill status-${link.status.toLowerCase()}`}>
+                                  {link.status}
+                                </span>
+                              </div>
+                              <div className="match-amount font-mono">
+                                {formatMinorCurrency(link.matchedAmountMinor, "USD")}
+                              </div>
+                            </div>
+
+                            <p className="link-explanation">{link.explanation}</p>
+
+                            <div className="link-actions">
+                              {link.status === "PROPOSED" ? (
+                                <>
+                                  <button
+                                    className="btn-action btn-approve"
+                                    onClick={() => handleApproveLink(link.id)}
+                                  >
+                                    <Check size={14} />
+                                    <span>Approve Match</span>
+                                  </button>
+                                  <button
+                                    className="btn-action btn-reject"
+                                    onClick={() => handleRejectLink(link.id)}
+                                  >
+                                    <X size={14} />
+                                    <span>Reject</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="reviewed-label">
+                                  Decided: {link.status} (Audit Recorded)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "reports" && (
+                <div className="reports-view">
+                  <div className="panel-header">
+                    <h4>Deterministic Financial Reports</h4>
+                    <span className="text-small text-muted">
+                      Exact minor-unit ledger aggregates (Zero floating-point rounding)
+                    </span>
+                  </div>
+
+                  {financialSummary && (
+                    <div className="summary-cards">
+                      <div className="report-card">
+                        <div className="report-card-label">Total Inflow / Income</div>
+                        <div className="report-card-val amount-credit">
+                          {formatMinorCurrency(financialSummary.totalIncomeMinor, "USD")}
+                        </div>
+                      </div>
+
+                      <div className="report-card">
+                        <div className="report-card-label">Total Outflow / Expenses</div>
+                        <div className="report-card-val amount-debit">
+                          {formatMinorCurrency(financialSummary.totalExpenseMinor, "USD")}
+                        </div>
+                      </div>
+
+                      <div className="report-card">
+                        <div className="report-card-label">Net Savings / Cash Flow</div>
+                        <div
+                          className={`report-card-val ${
+                            financialSummary.netSavingsMinor >= 0 ? "amount-credit" : "amount-debit"
+                          }`}
+                        >
+                          {formatMinorCurrency(financialSummary.netSavingsMinor, "USD")}
+                        </div>
+                      </div>
+
+                      {financialSummary.momExpenseChangePercent !== undefined && (
+                        <div className="report-card">
+                          <div className="report-card-label">MoM Expense Trend</div>
+                          <div className="report-card-val font-mono">
+                            {financialSummary.momExpenseChangePercent > 0 ? "+" : ""}
+                            {financialSummary.momExpenseChangePercent.toFixed(1)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="breakdown-section">
+                    <h5>Monthly Breakdown</h5>
+                    {(!financialSummary || financialSummary.monthlyBreakdown.length === 0) ? (
+                      <p className="text-muted text-small">No monthly records to display.</p>
+                    ) : (
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Month</th>
+                            <th>Transactions</th>
+                            <th>Total Income</th>
+                            <th>Total Expenses</th>
+                            <th>Net Cash Flow</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {financialSummary.monthlyBreakdown.map((m) => (
+                            <tr key={m.monthKey}>
+                              <td className="font-mono">{m.monthKey}</td>
+                              <td>{m.transactionCount}</td>
+                              <td className="font-mono amount-credit">
+                                {formatMinorCurrency(m.totalIncomeMinor, "USD")}
+                              </td>
+                              <td className="font-mono amount-debit">
+                                {formatMinorCurrency(m.totalExpenseMinor, "USD")}
+                              </td>
+                              <td
+                                className={`font-mono font-medium ${
+                                  m.netCashFlowMinor >= 0 ? "amount-credit" : "amount-debit"
+                                }`}
+                              >
+                                {formatMinorCurrency(m.netCashFlowMinor, "USD")}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -386,3 +386,301 @@ pub fn get_document_details(
         invoice_total_minor,
     })
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReconciliationResult {
+    pub links: Vec<crate::finance::matching::ProposedLink>,
+    pub anomalies: Vec<crate::finance::anomaly::FinancialAnomaly>,
+}
+
+#[tauri::command]
+pub fn run_reconciliation(state: State<AppState>) -> Result<ReconciliationResult, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard
+        .as_ref()
+        .ok_or("No workspace is currently unlocked.")?
+        .clone();
+    drop(ws_guard);
+
+    let mut db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_mut().ok_or("Database uninitialized.")?;
+
+    // 1. Fetch invoices in workspace
+    let mut inv_stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT i.id, i.vendor_name, i.invoice_number, i.invoice_date, i.total_minor, i.currency
+             FROM invoices i
+             JOIN documents d ON i.document_id = d.id
+             WHERE d.workspace_id = ?1;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let inv_rows = inv_stmt
+        .query_map(params![ws_id], |row| {
+            Ok(crate::finance::matching::InvoiceCandidate {
+                id: row.get(0)?,
+                vendor_name: row.get(1)?,
+                invoice_number: row.get(2)?,
+                invoice_date: row.get(3)?,
+                total_minor: row.get(4)?,
+                currency: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut invoices = Vec::new();
+    for inv in inv_rows {
+        invoices.push(inv.map_err(|e| e.to_string())?);
+    }
+
+    // 2. Fetch transactions in workspace
+    let mut tx_stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, posted_date, description, amount_minor, currency, external_ref
+             FROM transactions
+             WHERE workspace_id = ?1;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let tx_rows = tx_stmt
+        .query_map(params![ws_id], |row| {
+            Ok(crate::finance::matching::TransactionCandidate {
+                id: row.get(0)?,
+                posted_date: row.get(1)?,
+                description: row.get(2)?,
+                amount_minor: row.get(3)?,
+                currency: row.get(4)?,
+                external_ref: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut transactions = Vec::new();
+    for tx in tx_rows {
+        transactions.push(tx.map_err(|e| e.to_string())?);
+    }
+
+    // 3. Run deterministic reconciliation matching
+    let links = crate::finance::matching::ReconciliationMatcher::match_records(&invoices, &transactions);
+
+    // 4. Run deterministic anomaly detection
+    let anomalies = crate::finance::anomaly::AnomalyDetector::detect_anomalies(&invoices, &transactions);
+
+    // 5. Persist proposed links to database
+    let now = chrono::Utc::now().to_rfc3339();
+    for link in &links {
+        let _ = db.conn_ref().execute(
+            "INSERT OR IGNORE INTO invoice_payment_links
+             (id, workspace_id, invoice_id, transaction_id, matched_amount_minor, confidence_score, match_type, explanation, status, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);",
+            params![
+                link.id,
+                ws_id,
+                link.invoice_id,
+                link.transaction_id,
+                link.matched_amount_minor,
+                link.confidence_score,
+                link.match_type,
+                link.explanation,
+                link.status,
+                now
+            ],
+        );
+    }
+
+    // Persist anomalies
+    for anom in &anomalies {
+        let _ = db.conn_ref().execute(
+            "INSERT OR IGNORE INTO reconciliation_anomalies
+             (id, workspace_id, entity_type, entity_id, anomaly_type, description, severity, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);",
+            params![
+                anom.id,
+                ws_id,
+                anom.entity_type,
+                anom.entity_id,
+                anom.anomaly_type,
+                anom.description,
+                anom.severity,
+                now
+            ],
+        );
+    }
+
+    Ok(ReconciliationResult { links, anomalies })
+}
+
+#[tauri::command]
+pub fn list_reconciliation_links(state: State<AppState>) -> Result<Vec<crate::finance::matching::ProposedLink>, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, invoice_id, transaction_id, matched_amount_minor, confidence_score, match_type, explanation, status
+             FROM invoice_payment_links WHERE workspace_id = ?1 ORDER BY created_at DESC;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(crate::finance::matching::ProposedLink {
+                id: row.get(0)?,
+                invoice_id: row.get(1)?,
+                transaction_id: row.get(2)?,
+                matched_amount_minor: row.get(3)?,
+                confidence_score: row.get(4)?,
+                match_type: row.get(5)?,
+                explanation: row.get(6)?,
+                status: row.get(7)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn list_anomalies(state: State<AppState>) -> Result<Vec<crate::finance::anomaly::FinancialAnomaly>, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = match ws_guard.as_ref() {
+        Some(id) => id.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, entity_type, entity_id, anomaly_type, description, severity
+             FROM reconciliation_anomalies WHERE workspace_id = ?1 ORDER BY created_at DESC;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(crate::finance::anomaly::FinancialAnomaly {
+                id: row.get(0)?,
+                entity_type: row.get(1)?,
+                entity_id: row.get(2)?,
+                anomaly_type: row.get(3)?,
+                description: row.get(4)?,
+                severity: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn approve_reconciliation_link(
+    state: State<AppState>,
+    link_id: String,
+) -> Result<(), String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let mut db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_mut().ok_or("Database uninitialized.")?;
+
+    crate::finance::review::ReviewService::approve_link(db, &ws_id, &link_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reject_reconciliation_link(
+    state: State<AppState>,
+    link_id: String,
+) -> Result<(), String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    crate::finance::review::ReviewService::reject_link(db, &ws_id, &link_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn correct_transaction(
+    state: State<AppState>,
+    transaction_id: String,
+    new_description: String,
+) -> Result<(), String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    crate::finance::review::ReviewService::correct_transaction(db, &ws_id, &transaction_id, &new_description)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_financial_summary(
+    state: State<AppState>,
+    currency: String,
+) -> Result<crate::finance::aggregates::FinancialSummary, String> {
+    let ws_guard = state.active_workspace_id.lock().unwrap();
+    let ws_id = ws_guard.as_ref().ok_or("No workspace is unlocked.")?.clone();
+    drop(ws_guard);
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+
+    let mut stmt = db
+        .conn_ref()
+        .prepare(
+            "SELECT id, posted_date, description, amount_minor, currency, external_ref
+             FROM transactions WHERE workspace_id = ?1;",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![ws_id], |row| {
+            Ok(crate::finance::matching::TransactionCandidate {
+                id: row.get(0)?,
+                posted_date: row.get(1)?,
+                description: row.get(2)?,
+                amount_minor: row.get(3)?,
+                currency: row.get(4)?,
+                external_ref: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut transactions = Vec::new();
+    for r in rows {
+        transactions.push(r.map_err(|e| e.to_string())?);
+    }
+
+    Ok(crate::finance::aggregates::FinancialAggregator::compute_summary(&transactions, &currency))
+}

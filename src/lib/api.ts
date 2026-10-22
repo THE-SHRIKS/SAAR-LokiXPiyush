@@ -11,6 +11,10 @@ import {
   TransactionRecord,
   DocumentDetails,
   IngestResult,
+  ProposedLink,
+  FinancialAnomaly,
+  FinancialSummary,
+  ReconciliationResult,
 } from "./types";
 
 export class OpenDeckApi {
@@ -90,5 +94,54 @@ export class OpenDeckApi {
    */
   static async getDocumentDetails(documentId: string): Promise<DocumentDetails> {
     return await invoke<DocumentDetails>("get_document_details", { documentId });
+  }
+
+  /**
+   * Triggers deterministic reconciliation engine over active workspace records.
+   */
+  static async runReconciliation(): Promise<ReconciliationResult> {
+    return await invoke<ReconciliationResult>("run_reconciliation");
+  }
+
+  /**
+   * Retrieves proposed and reviewed reconciliation links.
+   */
+  static async listReconciliationLinks(): Promise<ProposedLink[]> {
+    return await invoke<ProposedLink[]>("list_reconciliation_links");
+  }
+
+  /**
+   * Retrieves active financial anomalies and duplicate alerts.
+   */
+  static async listAnomalies(): Promise<FinancialAnomaly[]> {
+    return await invoke<FinancialAnomaly[]>("list_anomalies");
+  }
+
+  /**
+   * Approves a proposed match link between invoice and transaction.
+   */
+  static async approveReconciliationLink(linkId: string): Promise<void> {
+    return await invoke<void>("approve_reconciliation_link", { linkId });
+  }
+
+  /**
+   * Rejects a proposed match link.
+   */
+  static async rejectReconciliationLink(linkId: string, reason = "Rejected by user"): Promise<void> {
+    return await invoke<void>("reject_reconciliation_link", { linkId, reason });
+  }
+
+  /**
+   * User manual correction of transaction description with full audit logging.
+   */
+  static async correctTransaction(transactionId: string, newDescription: string): Promise<void> {
+    return await invoke<void>("correct_transaction", { transactionId, newDescription });
+  }
+
+  /**
+   * Computes deterministic financial summary and monthly breakdown in integer minor units.
+   */
+  static async getFinancialSummary(currency = "USD"): Promise<FinancialSummary> {
+    return await invoke<FinancialSummary>("get_financial_summary", { currency });
   }
 }

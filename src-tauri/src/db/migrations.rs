@@ -1,6 +1,6 @@
 use rusqlite::{Connection, Result, Transaction};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 1;
+pub const CURRENT_SCHEMA_VERSION: i32 = 2;
 
 pub struct Migrator;
 
@@ -12,7 +12,7 @@ impl Migrator {
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;"
+             PRAGMA busy_timeout = 5000;",
         )?;
 
         // Create migrations tracking table
@@ -41,6 +41,74 @@ impl Migrator {
             )?;
             tx.commit()?;
         }
+
+        if current_version < 2 {
+            let tx = conn.transaction()?;
+            Self::apply_migration_v2(&tx)?;
+            tx.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'));",
+                [],
+            )?;
+            tx.commit()?;
+        }
+
+        Ok(())
+    }
+
+    fn apply_migration_v2(tx: &Transaction) -> Result<()> {
+        // 8. Invoice Payment Links (Reconciliation engine)
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS invoice_payment_links (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                invoice_id TEXT NOT NULL,
+                transaction_id TEXT NOT NULL,
+                matched_amount_minor INTEGER NOT NULL,
+                confidence_score REAL NOT NULL,
+                match_type TEXT NOT NULL,
+                explanation TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PROPOSED',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+                FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        // 9. Reconciliation Anomalies & Duplicate Candidates
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS reconciliation_anomalies (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                anomaly_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        // Performance indexes for reconciliation
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_links_ws ON invoice_payment_links(workspace_id);",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_links_inv ON invoice_payment_links(invoice_id);",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_links_tx ON invoice_payment_links(transaction_id);",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_anomalies_ws ON reconciliation_anomalies(workspace_id);",
+            [],
+        )?;
 
         Ok(())
     }
@@ -194,7 +262,7 @@ mod tests {
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_migrations;", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
         // Second run: must be idempotent and succeed without error
         Migrator::migrate(&mut conn).expect("Subsequent migration should be idempotent");

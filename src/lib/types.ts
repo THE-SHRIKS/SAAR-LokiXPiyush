@@ -136,3 +136,47 @@ export function formatMinorCurrency(minorUnits: number, currency: CurrencyCode):
 
   return `${sign}${symbol}${major.toLocaleString("en-US")}.${minorPadded}`;
 }
+
+export interface ProposedLink {
+  id: string;
+  invoiceId: string;
+  transactionId: string;
+  matchedAmountMinor: number;
+  confidenceScore: number;
+  matchType: string;
+  explanation: string;
+  status: "PROPOSED" | "APPROVED" | "REJECTED";
+}
+
+export interface FinancialAnomaly {
+  id: string;
+  entityType: "INVOICE" | "TRANSACTION";
+  entityId: string;
+  anomalyType: string;
+  description: string;
+  severity: "LOW" | "MEDIUM" | "HIGH";
+}
+
+export interface MonthAggregate {
+  monthKey: string;
+  totalIncomeMinor: number;
+  totalExpenseMinor: number;
+  netCashFlowMinor: number;
+  currency: string;
+  transactionCount: number;
+}
+
+export interface FinancialSummary {
+  totalIncomeMinor: number;
+  totalExpenseMinor: number;
+  netSavingsMinor: number;
+  currency: string;
+  monthlyBreakdown: MonthAggregate[];
+  momExpenseChangePercent?: number;
+}
+
+export interface ReconciliationResult {
+  links: ProposedLink[];
+  anomalies: FinancialAnomaly[];
+}
+

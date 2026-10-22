@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod finance;
 pub mod ingestion;
 pub mod security;
 pub mod state;
@@ -45,6 +46,13 @@ pub fn run() {
             commands::list_transactions,
             commands::ingest_file,
             commands::get_document_details,
+            commands::run_reconciliation,
+            commands::list_reconciliation_links,
+            commands::list_anomalies,
+            commands::approve_reconciliation_link,
+            commands::reject_reconciliation_link,
+            commands::correct_transaction,
+            commands::get_financial_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenDeck application");
