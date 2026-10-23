@@ -48,3 +48,19 @@ The brief also asks for `Docs/FINANCIAL_CORRECTNESS_RESULTS.md`, `Docs/END_TO_EN
 ## Honest final statement
 
 This pass fixed two verified financial defects with regression tests and identified a critical storage defect. It did not complete the brief, and the release is not ready.
+
+
+## Update after the corpus and security work
+
+Verdict is unchanged: **NOT READY**.
+
+| Gate | Status now | Basis |
+|---|---|---|
+| 2 - Financial correctness | **PARTIAL.** Deterministic extraction, reconciliation, duplicate detection and totals pass against independent ground truth for two workspaces (`Docs/FINANCIAL_CORRECTNESS_RESULTS.md`). Chat figures are still written by the model; currency conversion is not implemented. | 97 lib tests, corpus: 0 mismatches |
+| 3 - Data security | **PARTIAL.** Per-workspace encrypted databases, verified migration with rollback, and on-disk checks pass (`Docs/SECURITY_AND_OFFLINE_VERIFICATION.md`). Restore success path untested; decrypted temp files still use the system temp folder. | migration (3) and E2E disk check |
+| 4 - AI reliability | **FAIL.** Deterministic answers from code are not implemented; model figures can be labelled grounded while wrong. | earlier E2E answers |
+| 5 - Feature integration | **NOT VERIFIED.** The GUI was not exercised. | none |
+| 6 - Native end-to-end | **BLOCKED.** No desktop-control tool is available in this environment. | none |
+| 7 - Offline release | **NOT VERIFIED.** | none |
+
+Test infrastructure note: Windows Application Control intermittently refuses to start newly built test binaries. Every suite ran after retrying; nothing was bypassed.

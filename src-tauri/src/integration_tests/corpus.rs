@@ -189,6 +189,211 @@ fn run_workspace(workspace: &str) -> Outcome {
         }
     }
 
+
+    // ---- reconciliation and anomalies, checked against the ledger's expected outcomes
+    {
+        use crate::finance::anomaly::AnomalyDetector;
+        use crate::finance::matching::{InvoiceCandidate, ReconciliationMatcher, TransactionCandidate};
+
+        let conn = db.conn_ref();
+        let invoices: Vec<InvoiceCandidate> = conn
+            .prepare(
+                "SELECT i.id, i.vendor_name, i.invoice_number, i.invoice_date, i.total_minor, i.currency
+                 FROM invoices i JOIN documents d ON d.id = i.document_id WHERE d.workspace_id = ?1",
+            )
+            .unwrap()
+            .query_map([workspace], |r| {
+                Ok(InvoiceCandidate {
+                    id: r.get(0)?,
+                    vendor_name: r.get(1)?,
+                    invoice_number: r.get(2)?,
+                    invoice_date: r.get(3)?,
+                    total_minor: r.get(4)?,
+                    currency: r.get(5)?,
+                })
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+        let transactions: Vec<TransactionCandidate> = conn
+            .prepare(
+                "SELECT id, posted_date, description, amount_minor, currency, external_ref
+                 FROM transactions WHERE workspace_id = ?1",
+            )
+            .unwrap()
+            .query_map([workspace], |r| {
+                Ok(TransactionCandidate {
+                    id: r.get(0)?,
+                    posted_date: r.get(1)?,
+                    description: r.get(2)?,
+                    amount_minor: r.get(3)?,
+                    currency: r.get(4)?,
+                    external_ref: r.get(5)?,
+                })
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+
+        let links = ReconciliationMatcher::match_records(&invoices, &transactions);
+        let anomalies = AnomalyDetector::detect_anomalies(&invoices, &transactions);
+        let _ = writeln!(out.report, "\nreconciliation: {} links, {} anomalies", links.len(), anomalies.len());
+
+        let inv_by_id = |id: &str| invoices.iter().find(|i| i.id == id);
+        let tx_by_row = |date: &str, desc: &str, minor: i64, cur: &str| {
+            transactions
+                .iter()
+                .find(|t| t.posted_date == date && t.description == desc && t.amount_minor == minor && t.currency == cur)
+        };
+        let ids_for_number = |n: &str| -> Vec<&str> {
+            invoices.iter().filter(|i| i.invoice_number.as_deref() == Some(n)).map(|i| i.id.as_str()).collect()
+        };
+        let mut problems: Vec<String> = Vec::new();
+
+        let bank_rows = ledger["bank_rows"].as_array().unwrap();
+        let expect = &ledger["expect"];
+
+        // A. Paid-in-full invoices link, with an EXACT match, to their own payment.
+        let (mut matched_ok, mut matched_total) = (0, 0);
+        for row in bank_rows.iter().filter(|r| r["kind"] == "matched") {
+            matched_total += 1;
+            let tx = tx_by_row(
+                row["date"].as_str().unwrap(),
+                row["description"].as_str().unwrap(),
+                row["minor"].as_i64().unwrap(),
+                row["currency"].as_str().unwrap(),
+            );
+            let want = row["invoice"].as_str().unwrap();
+            // An invoice with no readable date can only be matched on amount and reference.
+            let undated = ledger["invoices"].as_array().unwrap().iter().any(|i| {
+                i["number"] == want && i["defects"].as_array().unwrap().iter().any(|d| d == "missing_date")
+            });
+            let want_type = if undated { "EXACT_NO_DATE" } else { "EXACT" };
+            match tx.and_then(|t| links.iter().find(|l| l.transaction_id == t.id)) {
+                Some(l) => {
+                    let got = inv_by_id(&l.invoice_id).and_then(|i| i.invoice_number.clone());
+                    if got.as_deref() == Some(want) && l.match_type == want_type {
+                        matched_ok += 1;
+                    } else {
+                        problems.push(format!("payment for {} linked to {:?} as {}", want, got, l.match_type));
+                    }
+                }
+                None => problems.push(format!("payment for {} has no link", want)),
+            }
+        }
+        let _ = writeln!(out.report, "- paid-in-full matched correctly: {}/{}", matched_ok, matched_total);
+
+        // B. Every duplicate payment is flagged for review.
+        for num in expect["duplicate_payment_invoices"].as_array().unwrap() {
+            let num = num.as_str().unwrap();
+            let rows: Vec<&Value> = bank_rows
+                .iter()
+                .filter(|r| r["invoice"] == num && r["kind"] == "duplicate_payment")
+                .collect();
+            let tx_ids: Vec<&str> = rows
+                .iter()
+                .filter_map(|r| {
+                    tx_by_row(
+                        r["date"].as_str().unwrap(),
+                        r["description"].as_str().unwrap(),
+                        r["minor"].as_i64().unwrap(),
+                        r["currency"].as_str().unwrap(),
+                    )
+                })
+                .map(|t| t.id.as_str())
+                .collect();
+            let flagged = anomalies
+                .iter()
+                .any(|a| a.anomaly_type == "POTENTIAL_DUPLICATE_PAYMENT" && tx_ids.contains(&a.entity_id.as_str()));
+            let _ = writeln!(out.report, "- duplicate payment {} flagged: {}", num, flagged);
+            if !flagged {
+                problems.push(format!("duplicate payment for {} was not flagged", num));
+            }
+        }
+
+        // C/D. Short and partial payments are never accepted as an exact match.
+        for key in ["short_payment_invoices", "partial_payment_invoices"] {
+            for num in expect[key].as_array().unwrap() {
+                let num = num.as_str().unwrap();
+                let ids = ids_for_number(num);
+                let exact = links
+                    .iter()
+                    .any(|l| ids.contains(&l.invoice_id.as_str()) && l.match_type == "EXACT");
+                let _ = writeln!(out.report, "- {} {} treated as exact match: {}", key, num, exact);
+                if exact {
+                    problems.push(format!("{} ({}) was matched as EXACT", num, key));
+                }
+            }
+        }
+
+        // E. Unpaid invoices have no exact link.
+        for num in expect["unpaid_invoices"].as_array().unwrap() {
+            let ids = ids_for_number(num.as_str().unwrap());
+            if links
+                .iter()
+                .any(|l| ids.contains(&l.invoice_id.as_str()) && l.match_type == "EXACT")
+            {
+                problems.push(format!("unpaid invoice {} was matched as EXACT", num));
+            }
+        }
+
+        // F. The unexplained card payment is not linked to any invoice.
+        if let Some(t) = transactions.iter().find(|t| t.description == "UNKNOWN CARD MERCHANT") {
+            if links.iter().any(|l| l.transaction_id == t.id) {
+                problems.push("UNKNOWN CARD MERCHANT was linked to an invoice".to_string());
+            }
+        }
+
+        // G. No link may join records in different currencies.
+        for l in &links {
+            let inv = inv_by_id(&l.invoice_id).unwrap();
+            let tx = transactions.iter().find(|t| t.id == l.transaction_id).unwrap();
+            if inv.currency != tx.currency {
+                problems.push(format!(
+                    "cross-currency link: invoice {} {} vs payment {}",
+                    inv.id, inv.currency, tx.currency
+                ));
+            }
+        }
+
+        // H. The re-sent invoice and the reused invoice number are flagged.
+        let pair = expect["suspected_duplicate_invoice_pair"].as_array().unwrap();
+        let pair_ids: Vec<&str> = pair.iter().flat_map(|n| ids_for_number(n.as_str().unwrap())).collect();
+        let resend_flagged = anomalies.iter().any(|a| {
+            a.entity_type == "INVOICE"
+                && pair_ids.contains(&a.entity_id.as_str())
+                && (a.anomaly_type == "SUSPECTED_DUPLICATE_BILLING" || a.anomaly_type == "DUPLICATE_INVOICE")
+        });
+        let _ = writeln!(out.report, "- re-sent invoice flagged: {}", resend_flagged);
+        if !resend_flagged {
+            problems.push("re-sent invoice was not flagged".to_string());
+        }
+        let clash_ids = ids_for_number(expect["duplicate_invoice_number"].as_str().unwrap());
+        let clash_flagged = anomalies
+            .iter()
+            .any(|a| a.anomaly_type == "DUPLICATE_INVOICE" && clash_ids.contains(&a.entity_id.as_str()));
+        let _ = writeln!(out.report, "- reused invoice number flagged: {}", clash_flagged);
+        if !clash_flagged {
+            problems.push("reused invoice number was not flagged".to_string());
+        }
+
+        // I. Recurring charges are never flagged as duplicates.
+        for name in expect["recurring_must_not_flag"].as_array().unwrap() {
+            let name = name.as_str().unwrap();
+            if let Some(a) = anomalies.iter().find(|a| {
+                (a.anomaly_type == "POTENTIAL_DUPLICATE_PAYMENT" || a.anomaly_type == "DUPLICATE_TRANSACTION")
+                    && a.description.contains(name)
+            }) {
+                problems.push(format!("recurring charge flagged as duplicate: {}", a.description));
+            }
+        }
+
+        for p in &problems {
+            let _ = writeln!(out.report, "- RECON PROBLEM: {}", p);
+        }
+        out.mismatches += problems.len();
+    }
+
     let _ = fs::remove_dir_all(&temp);
     out
 }
