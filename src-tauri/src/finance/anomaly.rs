@@ -15,6 +15,13 @@ pub struct FinancialAnomaly {
 
 pub struct AnomalyDetector;
 
+/// Formats a minor-unit amount for human-readable anomaly text, e.g. "742.81 USD".
+fn format_amount(minor: i64, currency: &str) -> String {
+    crate::finance::money::Money::new(minor, currency)
+        .map(|m| m.format_display())
+        .unwrap_or_else(|_| format!("{} {}", minor, currency))
+}
+
 impl AnomalyDetector {
     /// Detects duplicate invoices and transactions with false-positive suppression for recurring billing.
     pub fn detect_anomalies(
@@ -62,8 +69,8 @@ impl AnomalyDetector {
                         entity_id: inv2.id.clone(),
                         anomaly_type: "SUSPECTED_DUPLICATE_BILLING".to_string(),
                         description: format!(
-                            "Suspected duplicate billing: identical amount ({} {}) from '{}' within {} days.",
-                            inv1.total_minor, inv1.currency, inv1.vendor_name, days_diff
+                            "Suspected duplicate billing: identical amount ({}) from '{}' within {} days.",
+                            format_amount(inv1.total_minor, &inv1.currency), inv1.vendor_name, days_diff
                         ),
                         severity: "MEDIUM".to_string(),
                     });
@@ -86,8 +93,8 @@ impl AnomalyDetector {
                         entity_id: tx2.id.clone(),
                         anomaly_type: "DUPLICATE_TRANSACTION".to_string(),
                         description: format!(
-                            "Duplicate bank transaction detected on {}: '{}' for {} {}.",
-                            tx1.posted_date, tx1.description, tx1.amount_minor, tx1.currency
+                            "Duplicate bank transaction detected on {}: '{}' for {}.",
+                            tx1.posted_date, tx1.description, format_amount(tx1.amount_minor, &tx1.currency)
                         ),
                         severity: "HIGH".to_string(),
                     });
@@ -106,8 +113,8 @@ impl AnomalyDetector {
                     entity_id: tx.id.clone(),
                     anomaly_type: "LARGE_UNMATCHED".to_string(),
                     description: format!(
-                        "High-value posting ({} {}) requires documentation / receipt matching.",
-                        tx.amount_minor, tx.currency
+                        "High-value posting ({}) requires documentation / receipt matching.",
+                        format_amount(tx.amount_minor, &tx.currency)
                     ),
                     severity: "LOW".to_string(),
                 });

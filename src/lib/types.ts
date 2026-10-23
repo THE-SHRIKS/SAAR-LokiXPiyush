@@ -31,6 +31,31 @@ export interface WorkspaceInfo {
   isUnlocked: boolean;
 }
 
+export interface WorkspaceSummary {
+  id: string;
+  displayName: string;
+  baseCurrency: string;
+  createdAt: string;
+}
+
+export interface ChatThreadRecord {
+  id: string;
+  title: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  threadId: string;
+  sender: "user" | "assistant";
+  text: string;
+  response: GroundedChatResponse | null;
+  createdAt: string;
+}
+
 export interface DocumentRecord {
   id: string;
   workspaceId: string;
@@ -209,6 +234,23 @@ export interface GroundedChatResponse {
   citations: string[];
   grounded: boolean;
   verificationNote: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: "user" | "assistant";
+  text: string;
+  response?: GroundedChatResponse;
+  timestamp: string;
+}
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  pinned?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
 }
 
 export interface CategoryProposal {

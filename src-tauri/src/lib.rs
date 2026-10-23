@@ -7,6 +7,8 @@ pub mod ingestion;
 pub mod security;
 pub mod state;
 pub mod supervisor;
+#[cfg(test)]
+pub mod integration_tests;
 
 use ai::{LlmConfig, LlmEngine};
 use db::Database;
@@ -70,6 +72,13 @@ pub fn run() {
             commands::list_report_exports,
             commands::create_encrypted_backup,
             commands::restore_encrypted_backup,
+            commands::list_workspaces,
+            commands::list_chat_threads,
+            commands::create_chat_thread,
+            commands::list_chat_messages,
+            commands::rename_chat_thread,
+            commands::set_chat_thread_pinned,
+            commands::delete_chat_thread,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAAR application");

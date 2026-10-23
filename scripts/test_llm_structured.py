@@ -5,10 +5,11 @@ import os
 import psutil
 import jsonschema
 
-LLAMA_CLI_BIN = "/home/theshriksloki/OpenDeck/bin/llama/llama-cli"
-MODEL_PATH = "/home/theshriksloki/OpenDeck/models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf"
-SCHEMA_PATH = "/home/theshriksloki/OpenDeck/scripts/invoice_schema.json"
-GRAMMAR_PATH = "/home/theshriksloki/OpenDeck/scripts/invoice_grammar.gbnf"
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LLAMA_CLI_BIN = os.path.join(ROOT_DIR, "bin", "llama", "llama-cli.exe" if os.name == "nt" else "llama-cli")
+MODEL_PATH = os.path.join(ROOT_DIR, "models", "weights", "Qwen2.5-3B-Instruct-Q3_K_M.gguf")
+SCHEMA_PATH = os.path.join(ROOT_DIR, "scripts", "invoice_schema.json")
+GRAMMAR_PATH = os.path.join(ROOT_DIR, "scripts", "invoice_grammar.gbnf")
 
 INPUT_RECEIPT_TEXT = """
 OFFICE SUPPLIES MART
