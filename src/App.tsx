@@ -573,22 +573,22 @@ export const App: React.FC = () => {
   // Nothing is shown for an empty category, and the model answers every question itself.
   const chatSuggestions = useMemo(() => {
     const suggestions: string[] = [];
-    if (documents.length > 0) {
-      suggestions.push(`Summarize the ${documents.length} imported documents`);
-    }
-    if (anomalies.length > 0) {
-      suggestions.push(
-        `Explain the ${anomalies.length} flagged ${anomalies.length === 1 ? "anomaly" : "anomalies"}`,
-      );
-    }
-    if (reconciliationLinks.length > 0) {
-      suggestions.push(`Which ${reconciliationLinks.length} proposed matches need review, and why?`);
-    }
+    // Each suggestion maps to an operation that SAAR computes from the records and marks verified.
     if (transactions.length > 0) {
-      suggestions.push("What were my largest expenses in the recorded period?");
+      suggestions.push("What are my total expenses?");
+      suggestions.push("What are my largest expenses?");
     }
     if (financialSummary) {
-      suggestions.push(`What is my net savings in ${workspace?.baseCurrency ?? "USD"}?`);
+      suggestions.push(`What is my net cash flow in ${workspace?.baseCurrency ?? "USD"}?`);
+    }
+    if (anomalies.length > 0) {
+      suggestions.push("Are there any duplicate payments?");
+    }
+    if (reconciliationLinks.length > 0 || transactions.length > 0) {
+      suggestions.push("Which payments have no matching invoice?");
+    }
+    if (documents.length > 0) {
+      suggestions.push("How many documents are in this workspace?");
     }
     return suggestions.slice(0, 4);
   }, [documents, anomalies, reconciliationLinks, transactions, financialSummary, workspace]);

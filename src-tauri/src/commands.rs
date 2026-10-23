@@ -954,10 +954,9 @@ pub fn chat_grounded(
         return Err("Question cannot be empty.".to_string());
     }
     let ws_id = active_workspace_id(&state)?;
-    let quarantined = crate::ai::AdversarialDefense::contains_prompt_injection(&query);
 
-    // Phase 1: persist the question and build the fact packet while holding the DB lock.
-    let fact_packet = {
+    // Phase 1: persist the question and decide how it is answered, holding the DB lock.
+    let plan = {
         let db_guard = state.db.lock().unwrap();
         let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
         let conn = db.conn_ref();
@@ -981,36 +980,25 @@ pub fn chat_grounded(
                 .map_err(db_err)?;
         }
 
-        if quarantined {
-            None
-        } else {
-            Some(
-                crate::ai::GroundingEngine::build_fact_packet(conn, &ws_id, &query, &base_currency)
-                    .map_err(|e| format!("Failed to build fact packet: {}", e))?,
-            )
-        }
+        crate::ai::answer_plan::plan(conn, &ws_id, &base_currency, &query)?
     };
 
-    // Phase 2: run local inference without holding the DB lock.
-    let response = match fact_packet {
-        None => crate::ai::GroundedChatResponse {
-            answer: "This question was quarantined by the local safety boundary and was not answered.".to_string(),
-            intent: crate::ai::QueryIntent::GeneralFinancial,
-            citations: Vec::new(),
-            grounded: false,
-            verification_note: "Quarantined by AdversarialDefense engine.".to_string(),
-        },
-        Some(packet) => {
+    // Phase 2: build the response. Verified operations are computed by code. Only the model path
+    // runs inference, without the DB lock, and its text is always marked unverified.
+    use crate::ai::answer_plan::{self as answers, AnswerPlan};
+    let response = match plan {
+        AnswerPlan::Quarantined => answers::quarantined_response(),
+        AnswerPlan::Verified(answer) => answers::verified_response(&answer),
+        AnswerPlan::Model(packet) => {
             let (system_prompt, user_prompt) = crate::ai::GroundingEngine::build_prompts(&packet);
             let llm_guard = state.llm_engine.lock().unwrap();
-            let llm = llm_guard
-                .as_ref()
-                .ok_or("The local language model is not loaded. Check the bundled model files.")?;
-            let raw_answer = llm
-                .generate(&system_prompt, &user_prompt, None)
-                .map_err(|e| format!("Local model inference failed: {}", e))?;
-            drop(llm_guard);
-            crate::ai::GroundingEngine::validate_and_parse_response(&packet, &raw_answer)
+            match llm_guard.as_ref() {
+                None => answers::model_unavailable_response("the local language model is not loaded"),
+                Some(llm) => match llm.generate(&system_prompt, &user_prompt, None) {
+                    Ok(raw_answer) => answers::model_response(&packet, &raw_answer),
+                    Err(e) => answers::model_unavailable_response(&format!("local inference failed: {}", e)),
+                },
+            }
         }
     };
 

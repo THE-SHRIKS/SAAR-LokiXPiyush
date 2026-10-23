@@ -64,3 +64,21 @@ Verdict is unchanged: **NOT READY**.
 | 7 - Offline release | **NOT VERIFIED.** | none |
 
 Test infrastructure note: Windows Application Control intermittently refuses to start newly built test binaries. Every suite ran after retrying; nothing was bypassed.
+
+
+## Update after the verified-answer layer and end-to-end restore
+
+Verdict is unchanged: **NOT READY**, because the installed Windows GUI workflow and the offline run have not been executed.
+
+| Gate | Status now | Basis |
+|---|---|---|
+| 2 - Financial correctness | **PASS for the deterministic engine**; currency conversion is not implemented (other currencies are reported as excluded) | corpus: 0 mismatches over 47 invoices, 10 receipts, 2 statements; answers equal the ledger for every month |
+| 3 - Data security | **PASS for storage, migration and backup/restore**; the user's real data was not migrated (none found); decrypted temp files still use the system temp folder; no disk scan of WAL/SHM sidecars | migration (3 tests), E2E disk checks, E2E restore |
+| 4 - AI reliability | **PASS for the architecture**: every figure comes from code and is marked verified; model text is always marked unverified; injection is quarantined; the model-missing path is safe. The model's free-form text is still often wrong. | `answers`, `answer_plan`, `financial_ops` tests; E2E chat section |
+| 5 - Feature integration | **NOT VERIFIED** | the GUI was not exercised |
+| 6 - Native end-to-end | **BLOCKED** | no desktop-control tool; installer not built |
+| 7 - Offline release | **NOT VERIFIED** | no network-disconnected run or traffic capture |
+
+Test counts: 108 library tests (including the corpus, dynamic-result and answer tests), integration suites p1-p6, migration (3), golden dataset (2), end-to-end (1), frontend (7), all passing.
+
+Still open: GUI testing, installer build and install test, offline traffic capture, GPU inference and the Qwen3.5-4B evaluation, currency conversion, anomaly noise on recurring large payments, partial-payment linking, and moving decrypted temp files into a private folder.

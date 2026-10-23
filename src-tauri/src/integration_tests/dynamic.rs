@@ -17,7 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn corpus_dir(workspace: &str) -> PathBuf {
+pub(crate) fn corpus_dir(workspace: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -25,8 +25,8 @@ fn corpus_dir(workspace: &str) -> PathBuf {
         .join(workspace)
 }
 
-struct Harness {
-    db: Database,
+pub(crate) struct Harness {
+    pub(crate) db: Database,
     blobs: BlobStore,
     ocr: OcrClient,
     master: zeroize::Zeroizing<[u8; 32]>,
@@ -34,7 +34,7 @@ struct Harness {
 }
 
 impl Harness {
-    fn new(workspace: &str) -> Self {
+    pub(crate) fn new(workspace: &str) -> Self {
         let temp = std::env::temp_dir().join(format!("saar_dynamic_{}", Uuid::new_v4()));
         fs::create_dir_all(&temp).unwrap();
         let blobs = BlobStore::new(temp.join("blobs")).unwrap();
@@ -46,7 +46,7 @@ impl Harness {
         Harness { db, blobs, ocr: OcrClient::new().expect("OCR client"), master, temp }
     }
 
-    fn ingest_csv(&mut self, workspace: &str, csv_text: &str) {
+    pub(crate) fn ingest_csv(&mut self, workspace: &str, csv_text: &str) {
         let path = self.temp.join(format!("{}.csv", Uuid::new_v4()));
         fs::write(&path, csv_text).unwrap();
         match DocumentOrchestrator::ingest_file(&mut self.db, &self.blobs, &self.ocr, &self.master, workspace, &path, "USD") {
@@ -55,11 +55,18 @@ impl Harness {
         }
     }
 
-    fn usd_totals(&self, workspace: &str) -> (i64, i64) {
+    pub(crate) fn ingest_file(&mut self, workspace: &str, path: &std::path::Path) {
+        match DocumentOrchestrator::ingest_file(&mut self.db, &self.blobs, &self.ocr, &self.master, workspace, path, "USD") {
+            Ok(IngestResult::Success { .. }) => {}
+            other => panic!("{} must ingest as new: {:?}", path.display(), other.map(|_| "non-success")),
+        }
+    }
+
+    pub(crate) fn usd_totals(&self, workspace: &str) -> (i64, i64) {
         GroundingEngine::scoped_totals(self.db.conn_ref(), workspace, "USD").unwrap()
     }
 
-    fn tx_count(&self, workspace: &str) -> i64 {
+    pub(crate) fn tx_count(&self, workspace: &str) -> i64 {
         self.db
             .conn_ref()
             .query_row("SELECT COUNT(*) FROM transactions WHERE workspace_id = ?1", [workspace], |r| r.get(0))

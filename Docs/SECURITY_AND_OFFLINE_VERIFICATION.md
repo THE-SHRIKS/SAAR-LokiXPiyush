@@ -24,8 +24,10 @@
 | Wrong passphrase rejected at unlock | E2E run | **PASS** |
 | Data survives lock and unlock | E2E run: 8 transactions and 12 chat messages after unlock | **PASS** |
 | Backup captures the active workspace's blobs | E2E run: `blobCount: 4` (previously 0) | **PASS** |
-| Restore rejects an existing workspace id | Code path only; no test yet | **NOT VERIFIED** |
-| Restore success path (staging, promotion, unlock of restored copy) | Not run | **NOT VERIFIED** |
+| Restore rejects an existing workspace id | E2E: a second restore of the same archive is refused | **PASS** |
+| Restore success into a clean installation: unlock, transactions, totals, document decryption, chat history, answers equal the source | E2E (`Docs/END_TO_END_EXECUTION.md`) | **PASS** |
+| Wrong backup passphrase and a tampered archive are rejected | E2E | **PASS** |
+| Restored database has no plaintext header or vendor text | E2E disk check on both installations | **PASS** |
 
 ## Shared blobs (defect found and fixed)
 
@@ -35,7 +37,7 @@ The legacy blob store was shared across workspaces, and each blob was encrypted 
 
 1. **The user's real legacy database has not been migrated.** Per your instruction, nothing was run on your actual data. Until migration runs, the app shows no existing workspaces, because the plaintext file is no longer opened. Migration needs your passphrases and your explicit go-ahead.
 2. **No migration UI.** The migration is a Rust function with tests, not a button in the application.
-3. **Restore success path is untested.** The code is written; it must be exercised before it is trusted.
+3. ~~Restore success path is untested.~~ Verified in the end-to-end run. A defect was found and fixed: restore ran a plaintext integrity check on an encrypted file.
 4. **Temporary plaintext files.** Decrypted working copies (`TempPlaintextGuard`) and export outputs are written under the system temp directory. Ephemeral working files should move to a private directory inside the data folder, and be overwritten before deletion.
 5. **WAL and SHM sidecar files** for the encrypted databases are not yet inspected on disk.
 6. **Chat history** lives inside the encrypted per-workspace database. It has been covered by the E2E run, but not by a disk-level scan of its own.
