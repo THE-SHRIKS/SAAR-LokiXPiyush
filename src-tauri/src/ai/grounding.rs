@@ -119,6 +119,24 @@ impl GroundingEngine {
     }
 
     /// Compiles a strictly typed fact packet from the local database for the active workspace.
+    /// Income and expense totals over every transaction in the workspace and currency.
+    /// Computed in SQL over all rows, never from a bounded sample.
+    pub fn scoped_totals(
+        conn: &Connection,
+        workspace_id: &str,
+        currency: &str,
+    ) -> Result<(i64, i64)> {
+        conn.query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN amount_minor > 0 THEN amount_minor ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN amount_minor < 0 THEN -amount_minor ELSE 0 END), 0)
+             FROM transactions
+             WHERE workspace_id = ?1 AND currency = ?2;",
+            params![workspace_id, currency],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+    }
+
     pub fn build_fact_packet(
         conn: &Connection,
         workspace_id: &str,
@@ -174,21 +192,13 @@ impl GroundingEngine {
             })
         })?;
 
+        // The 50-row list is supporting evidence only. Totals come from a full aggregate below,
+        // so a large workspace yields the same totals as a small one.
         let mut transactions = Vec::new();
-        let mut total_income = 0i64;
-        let mut total_expense = 0i64;
-
         for tx_res in tx_rows {
-            let tx = tx_res?;
-            if tx.currency == target_currency {
-                if tx.amount_minor > 0 {
-                    total_income += tx.amount_minor;
-                } else {
-                    total_expense += tx.amount_minor.abs();
-                }
-            }
-            transactions.push(tx);
+            transactions.push(tx_res?);
         }
+        let (total_income, total_expense) = Self::scoped_totals(conn, workspace_id, target_currency)?;
 
         // 3. Fetch Anomalies
         let mut anom_stmt = conn.prepare(
@@ -322,5 +332,54 @@ mod tests {
             GroundingEngine::parse_intent("Are there any unlinked transactions or duplicates?"),
             QueryIntent::ReconciliationStatus
         );
+    }
+}
+
+#[cfg(test)]
+mod scoped_total_tests {
+    use super::*;
+    use crate::db::Database;
+
+    /// Regression: totals must cover every transaction, not only the 50 rows shown as evidence.
+    #[test]
+    fn test_totals_cover_all_transactions_beyond_the_evidence_limit() {
+        let db = Database::open_in_memory().unwrap();
+        db.create_workspace("ws-big", "Big", "USD", &[1u8; 16], &[2u8; 32]).unwrap();
+        let conn = db.conn_ref();
+
+        // 120 USD debits of 10.00 and 120 USD credits of 3.25, plus one EUR debit that must not
+        // be mixed into USD totals. Expected values are computed independently below.
+        let mut expected_income = 0i64;
+        let mut expected_expense = 0i64;
+        for i in 0..120 {
+            let date = format!("2026-{:02}-{:02}", 1 + (i % 12), 1 + (i % 28));
+            conn.execute(
+                "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+                 VALUES (?1, 'ws-big', ?2, 'VENDOR DEBIT', -1000, 'USD', 'UNREVIEWED');",
+                params![format!("d{}", i), date],
+            )
+            .unwrap();
+            expected_expense += 1000;
+            conn.execute(
+                "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+                 VALUES (?1, 'ws-big', ?2, 'CUSTOMER CREDIT', 325, 'USD', 'UNREVIEWED');",
+                params![format!("c{}", i), date],
+            )
+            .unwrap();
+            expected_income += 325;
+        }
+        conn.execute(
+            "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+             VALUES ('eur-1', 'ws-big', '2026-06-01', 'EU SUPPLIER', -120000, 'EUR', 'UNREVIEWED');",
+            [],
+        )
+        .unwrap();
+
+        let packet = GroundingEngine::build_fact_packet(conn, "ws-big", "net savings", "USD").unwrap();
+        assert_eq!(packet.total_income_minor, expected_income);
+        assert_eq!(packet.total_expense_minor, expected_expense);
+        assert_eq!(packet.net_savings_minor, expected_income - expected_expense);
+        // The evidence list stays bounded even though totals cover every row.
+        assert_eq!(packet.transactions.len(), 50);
     }
 }
