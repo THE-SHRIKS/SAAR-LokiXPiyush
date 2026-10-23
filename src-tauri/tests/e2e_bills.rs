@@ -75,9 +75,10 @@ fn ipc(
 fn e2e_bills_through_command_layer() {
     let temp_dir = std::env::temp_dir().join(format!("saar_e2e_{}", Uuid::new_v4()));
     fs::create_dir_all(&temp_dir).unwrap();
+    let data_dir = temp_dir.join("data");
 
     let app = mock_builder()
-        .manage(AppState::new())
+        .manage(AppState::new(data_dir.clone()))
         .invoke_handler(tauri::generate_handler![
             commands::get_system_status,
             commands::create_workspace,
@@ -117,8 +118,6 @@ fn e2e_bills_through_command_layer() {
 
     // Wire the same resources the app's run() wires, but against a temp data directory.
     let state = app.state::<AppState>();
-    *state.db.lock().unwrap() = Some(Database::open(temp_dir.join("workspace.db")).unwrap());
-    *state.blob_store.lock().unwrap() = Some(BlobStore::new(temp_dir.join("blobs")).unwrap());
     *state.ocr_client.lock().unwrap() = Some(OcrClient::new().expect("OCR worker"));
     *state.llm_engine.lock().unwrap() =
         Some(LlmEngine::new(LlmConfig::default()).expect("local model"));
@@ -266,6 +265,28 @@ fn e2e_bills_through_command_layer() {
     r.line(format!("transactions after unlock: {}", after.as_array().map_or(0, |a| a.len())));
     let threads = ipc(&webview, "list_chat_threads", json!({})).unwrap_or(Value::Null);
     r.line(format!("threads after unlock: {}", threads));
+
+    // Disk check: the workspace files must be encrypted and must not contain record text.
+    let ws_dir = data_dir.join("workspaces");
+    let mut checked = 0;
+    for entry in fs::read_dir(&ws_dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("saardb") {
+            continue;
+        }
+        let bytes = fs::read(&path).unwrap();
+        checked += 1;
+        if bytes.starts_with(b"SQLite format 3") {
+            r.fail(format!("{} has a plaintext SQLite header", path.display()));
+        }
+        if bytes.windows(b"NORTHWIND".len()).any(|w| w == b"NORTHWIND") {
+            r.fail(format!("{} contains plaintext record text", path.display()));
+        }
+    }
+    r.line(format!("encrypted workspace files checked on disk: {}", checked));
+    if checked == 0 {
+        r.fail("no encrypted workspace database found on disk");
+    }
 
     fs::write(RESULTS_PATH, &r.body).unwrap();
     assert!(r.failures.is_empty(), "E2E failures: {:#?}", r.failures);

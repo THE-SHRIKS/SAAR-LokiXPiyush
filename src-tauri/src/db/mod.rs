@@ -29,6 +29,23 @@ impl Database {
         Ok(db)
     }
 
+    /// Opens or creates an encrypted (SQLCipher) workspace database with a raw 256-bit key.
+    ///
+    /// SQLCipher reads the file header with the key, so a wrong key fails at the first read.
+    /// The key is applied before any other statement touches the file.
+    pub fn open_encrypted<P: AsRef<Path>>(path: P, key: &[u8; 32]) -> Result<Self> {
+        let mut conn = Connection::open(path)?;
+        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
+        // Keep temporary tables and sort spill in memory, never as plaintext temp files.
+        conn.execute_batch("PRAGMA temp_store = MEMORY;")?;
+        // Key check: fails with "file is not a database" when the key does not match.
+        conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get::<_, i64>(0))?;
+        Migrator::migrate(&mut conn)?;
+        let db = Self { conn };
+        let _ = db.recover_interrupted_operations();
+        Ok(db)
+    }
+
     /// Creates an in-memory database instance (primarily for automated integration tests).
     pub fn open_in_memory() -> Result<Self> {
         let mut conn = Connection::open_in_memory()?;

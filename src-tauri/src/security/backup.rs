@@ -44,6 +44,10 @@ pub struct BackupManifest {
     pub db_sha256: String,
     pub blob_count: usize,
     pub total_raw_bytes: usize,
+    /// Argon2id salt of the workspace, needed to re-register it on restore. Older archives
+    /// without this field cannot be restored into the per-workspace layout.
+    #[serde(default)]
+    pub workspace_salt_hex: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -111,6 +115,7 @@ impl BackupService {
         blob_dir: &Path,
         workspace_id: &str,
         workspace_name: &str,
+        workspace_salt_hex: &str,
         dest_archive_path: &Path,
         passphrase: &str,
     ) -> Result<BackupManifest, BackupError> {
@@ -155,6 +160,7 @@ impl BackupService {
             db_sha256,
             blob_count,
             total_raw_bytes,
+            workspace_salt_hex: workspace_salt_hex.to_string(),
         };
 
         let payload = BackupArchivePayload {

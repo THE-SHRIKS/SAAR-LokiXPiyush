@@ -182,15 +182,7 @@ export class SaarApi {
     });
   }
 
-  static restoreEncryptedBackup(
-    archivePath: string,
-    passphrase: string,
-    targetDataDir?: string,
-  ): Promise<BackupManifest> {
-    return call<BackupManifest>("restore_encrypted_backup", {
-      archivePath,
-      passphrase,
-      targetDataDir: targetDataDir || null,
-    });
+  static restoreEncryptedBackup(archivePath: string, passphrase: string): Promise<BackupManifest> {
+    return call<BackupManifest>("restore_encrypted_backup", { archivePath, passphrase });
   }
 }

@@ -5,7 +5,8 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::ingestion::{DocumentOrchestrator, IngestResult, NormalizedField, NormalizedLineItem};
-use crate::security::KeyDeriver;
+use crate::security::{BlobStore, KeyDeriver};
+use std::fs;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,12 +76,8 @@ pub fn get_system_status(state: State<AppState>) -> SystemStatus {
     let ocr_ready = state.ocr_client.lock().unwrap().is_some();
     let llm_ready = state.llm_engine.lock().unwrap().is_some();
     let has_key = state.active_master_key.lock().unwrap().is_some();
-    let database_encrypted = if let Some(ref db) = *state.db.lock().unwrap() {
-        let is_sqlcipher: rusqlite::Result<String> = db.conn_ref().query_row("PRAGMA cipher_version;", [], |r| r.get(0));
-        is_sqlcipher.is_ok() && has_key
-    } else {
-        false
-    };
+    // Reports true only when the open database was opened with a key (see AppState).
+    let database_encrypted = *state.database_encrypted.lock().unwrap() && has_key;
     let ws_guard = state.active_workspace_id.lock().unwrap();
     SystemStatus {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -98,6 +95,24 @@ pub fn get_system_status(state: State<AppState>) -> SystemStatus {
     }
 }
 
+/// Opens a workspace's encrypted database and makes it the active workspace.
+/// The caller has already authenticated the passphrase.
+fn activate_workspace(
+    state: &State<AppState>,
+    workspace_id: &str,
+    db: crate::db::Database,
+    master_key: zeroize::Zeroizing<[u8; 32]>,
+) -> Result<(), String> {
+    let blobs = BlobStore::new(crate::workspace_store::blob_dir(&state.data_dir, workspace_id))
+        .map_err(|e| format!("Blob storage unavailable: {}", e))?;
+    *state.db.lock().unwrap() = Some(db);
+    *state.blob_store.lock().unwrap() = Some(blobs);
+    *state.active_master_key.lock().unwrap() = Some(master_key);
+    *state.active_workspace_id.lock().unwrap() = Some(workspace_id.to_string());
+    *state.database_encrypted.lock().unwrap() = true;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn create_workspace(
     state: State<AppState>,
@@ -105,38 +120,51 @@ pub fn create_workspace(
     passphrase: String,
     base_currency: String,
 ) -> Result<WorkspaceInfo, String> {
+    use crate::workspace_store::{self as store, Catalog, CatalogEntry};
+
     if passphrase.trim().is_empty() {
         return Err("Passphrase cannot be empty.".to_string());
+    }
+    let display_name = display_name.trim().to_string();
+    if display_name.is_empty() {
+        return Err("Workspace name cannot be empty.".to_string());
     }
 
     let salt = KeyDeriver::generate_salt();
     let master_key = KeyDeriver::derive_master_key(&passphrase, &salt)?;
     let verification_token = KeyDeriver::compute_verification_token(&master_key);
+    let db_key = store::derive_db_key(&master_key);
 
     let workspace_id = Uuid::new_v4().to_string();
+    let path = store::db_path(&state.data_dir, &workspace_id);
+    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
 
-    let db_guard = state.db.lock().unwrap();
-    if let Some(db) = db_guard.as_ref() {
-        db.create_workspace(
-            &workspace_id,
-            &display_name,
-            &base_currency,
-            &salt,
-            &verification_token,
-        )
+    let db = crate::db::Database::open_encrypted(&path, &db_key)
         .map_err(|e| format!("Database error: {}", e))?;
+    let created_at = chrono::Utc::now().to_rfc3339();
+    if let Err(e) = db.create_workspace(&workspace_id, &display_name, &base_currency, &salt, &verification_token) {
+        drop(db);
+        let _ = fs::remove_file(&path);
+        return Err(format!("Database error: {}", e));
     }
 
-    // Update active in-memory state
-    *state.active_workspace_id.lock().unwrap() = Some(workspace_id.clone());
-    *state.active_master_key.lock().unwrap() = Some(master_key);
+    // Catalog entry only after the encrypted database exists and holds the workspace row.
+    let mut catalog = Catalog::load(&state.data_dir)?;
+    catalog.version = 1;
+    catalog.workspaces.push(CatalogEntry {
+        id: workspace_id.clone(),
+        salt_hex: store::salt_to_hex(&salt),
+        created_at: created_at.clone(),
+    });
+    catalog.save(&state.data_dir)?;
 
+    activate_workspace(&state, &workspace_id, db, master_key)?;
     Ok(WorkspaceInfo {
         id: workspace_id,
         display_name,
         base_currency,
         schema_version: 1,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at,
         is_unlocked: true,
     })
 }
@@ -147,23 +175,27 @@ pub fn unlock_workspace(
     workspace_id: String,
     passphrase: String,
 ) -> Result<WorkspaceInfo, String> {
-    let db_guard = state.db.lock().unwrap();
-    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    use crate::workspace_store::{self as store, Catalog};
 
-    let (salt, expected_token) = db
-        .get_workspace_auth_params(&workspace_id)
-        .map_err(|_| "Workspace not found.".to_string())?;
+    let catalog = Catalog::load(&state.data_dir)?;
+    let entry = catalog
+        .find(&workspace_id)
+        .ok_or_else(|| "Workspace not found.".to_string())?
+        .clone();
+    let salt = store::salt_from_hex(&entry.salt_hex)?;
 
-    let master_key = KeyDeriver::verify_passphrase(&passphrase, &salt, &expected_token)?;
+    // The passphrase is checked by deriving the key and opening the encrypted file. A wrong key
+    // makes SQLCipher fail at the first read, so no separate plaintext check is needed.
+    let master_key = KeyDeriver::derive_master_key(&passphrase, &salt)?;
+    let db_key = store::derive_db_key(&master_key);
+    let path = store::db_path(&state.data_dir, &workspace_id);
+    let db = crate::db::Database::open_encrypted(&path, &db_key)
+        .map_err(|_| "Incorrect master passphrase provided.".to_string())?;
     let summary = db
         .get_workspace_summary(&workspace_id)
         .map_err(|e| format!("Database error: {}", e))?;
 
-    // Set active unlocked state
-    drop(db_guard);
-    *state.active_workspace_id.lock().unwrap() = Some(workspace_id.clone());
-    *state.active_master_key.lock().unwrap() = Some(master_key);
-
+    activate_workspace(&state, &workspace_id, db, master_key)?;
     Ok(WorkspaceInfo {
         id: summary.id,
         display_name: summary.display_name,
@@ -174,20 +206,32 @@ pub fn unlock_workspace(
     })
 }
 
-/// Lists workspaces that can be unlocked. Returns metadata only, never key material.
-#[tauri::command]
-pub fn list_workspaces(state: State<AppState>) -> Result<Vec<crate::db::WorkspaceSummary>, String> {
-    let db_guard = state.db.lock().unwrap();
-    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
-    db.list_workspace_summaries()
-        .map_err(|e| format!("Database error: {}", e))
-}
-
 #[tauri::command]
 pub fn lock_workspace(state: State<AppState>) -> Result<(), String> {
-    *state.active_workspace_id.lock().unwrap() = None;
+    // Dropping the connection closes the database. Keys are zeroized when their values drop.
+    *state.db.lock().unwrap() = None;
+    *state.blob_store.lock().unwrap() = None;
     *state.active_master_key.lock().unwrap() = None;
+    *state.active_workspace_id.lock().unwrap() = None;
+    *state.database_encrypted.lock().unwrap() = false;
     Ok(())
+}
+
+/// Lists workspaces that can be unlocked, from the catalog. Names and currencies are stored
+/// only inside each encrypted database, so they are not listed here until a workspace is unlocked.
+#[tauri::command]
+pub fn list_workspaces(state: State<AppState>) -> Result<Vec<crate::db::WorkspaceSummary>, String> {
+    let catalog = crate::workspace_store::Catalog::load(&state.data_dir)?;
+    Ok(catalog
+        .workspaces
+        .iter()
+        .map(|w| crate::db::WorkspaceSummary {
+            id: w.id.clone(),
+            display_name: "Encrypted workspace".to_string(),
+            base_currency: String::new(),
+            created_at: w.created_at.clone(),
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -1263,28 +1307,35 @@ pub fn create_encrypted_backup(
         )
         .unwrap_or_else(|_| "SAAR Default Workspace".to_string());
 
-    let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
-        .map(|dirs| dirs.data_local_dir().to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
-    let db_path = data_dir.join("saar_workspace.db");
-    let blob_dir = data_dir.join("blobs");
+    // Snapshot the active workspace's own files: fold the WAL into the main file first so the
+    // copied database is complete.
+    db.conn_ref()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .map_err(|e| format!("Checkpoint failed: {}", e))?;
+    let db_path = crate::workspace_store::db_path(&state.data_dir, &ws_id);
+    let blob_dir = crate::workspace_store::blob_dir(&state.data_dir, &ws_id);
 
     let target_archive = match destination_path {
         Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
         _ => {
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            data_dir
+            state
+                .data_dir
                 .join("backups")
                 .join(format!("saar_backup_{}.saar", timestamp))
         }
     };
 
+    let salt: Vec<u8> = db
+        .conn_ref()
+        .query_row("SELECT salt FROM workspaces WHERE id = ?1", [&ws_id], |r| r.get(0))
+        .map_err(|e| format!("Workspace salt unavailable: {}", e))?;
     let manifest = crate::security::BackupService::create_backup(
         &db_path,
         &blob_dir,
         &ws_id,
         &ws_name,
+        &crate::workspace_store::salt_to_hex(&salt),
         &target_archive,
         &passphrase,
     )
@@ -1309,27 +1360,77 @@ pub fn create_encrypted_backup(
     Ok(manifest)
 }
 
+/// Restores a backup archive as a new workspace.
+///
+/// The archive is decrypted into a staging folder. The restored workspace id must not already
+/// exist, so no existing workspace is ever overwritten. The files are then promoted and the
+/// catalog is updated. Database integrity is checked when the restored workspace is unlocked,
+/// because only the workspace passphrase can open its encrypted database.
 #[tauri::command]
 pub fn restore_encrypted_backup(
+    state: State<AppState>,
     archive_path: String,
     passphrase: String,
-    target_data_dir: Option<String>,
 ) -> Result<crate::security::BackupManifest, String> {
-    let base_dir = match target_data_dir {
-        Some(d) if !d.trim().is_empty() => std::path::PathBuf::from(d),
-        _ => directories::ProjectDirs::from("com", "theshriks", "saar")
-            .map(|dirs| dirs.data_local_dir().to_path_buf())
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default()),
-    };
+    use crate::workspace_store::{self as store, Catalog, CatalogEntry};
 
-    let target_db = base_dir.join("saar_workspace.db");
-    let target_blobs = base_dir.join("blobs");
+    let staging = state
+        .data_dir
+        .join("restore-staging")
+        .join(Uuid::new_v4().to_string());
+    fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
+    let staged_db = staging.join("restored.saardb");
+    let staged_blobs = staging.join("blobs");
 
-    crate::security::BackupService::restore_backup(
-        std::path::Path::new(&archive_path),
-        &target_db,
-        &target_blobs,
-        &passphrase,
-    )
-    .map_err(|e| e.to_string())
+    let result = (|| -> Result<crate::security::BackupManifest, String> {
+        let manifest = crate::security::BackupService::restore_backup(
+            std::path::Path::new(&archive_path),
+            &staged_db,
+            &staged_blobs,
+            &passphrase,
+        )
+        .map_err(|e| e.to_string())?;
+
+        if manifest.workspace_salt_hex.is_empty() {
+            return Err("This archive predates per-workspace storage and cannot be restored automatically.".to_string());
+        }
+        let header = fs::read(&staged_db).map_err(|e| e.to_string())?;
+        if header.starts_with(b"SQLite format 3") {
+            return Err("The archive contains an unencrypted database; restore refused.".to_string());
+        }
+
+        let mut catalog = Catalog::load(&state.data_dir)?;
+        let final_db = store::db_path(&state.data_dir, &manifest.workspace_id);
+        let final_blobs = store::blob_dir(&state.data_dir, &manifest.workspace_id);
+        if catalog.find(&manifest.workspace_id).is_some() || final_db.exists() || final_blobs.exists() {
+            return Err("A workspace with this id already exists. Restore refuses to overwrite it.".to_string());
+        }
+
+        fs::create_dir_all(final_db.parent().unwrap()).map_err(|e| e.to_string())?;
+        fs::rename(&staged_db, &final_db).map_err(|e| e.to_string())?;
+        if staged_blobs.exists() {
+            fs::rename(&staged_blobs, &final_blobs).map_err(|e| {
+                let _ = fs::remove_file(&final_db);
+                e.to_string()
+            })?;
+        } else {
+            fs::create_dir_all(&final_blobs).map_err(|e| e.to_string())?;
+        }
+
+        catalog.workspaces.push(CatalogEntry {
+            id: manifest.workspace_id.clone(),
+            salt_hex: manifest.workspace_salt_hex.clone(),
+            created_at: manifest.created_at.clone(),
+        });
+        if let Err(e) = catalog.save(&state.data_dir) {
+            // Roll back the promoted files so the catalog and the files stay consistent.
+            let _ = fs::remove_file(&final_db);
+            let _ = fs::remove_dir_all(&final_blobs);
+            return Err(e);
+        }
+        Ok(manifest)
+    })();
+
+    let _ = fs::remove_dir_all(&staging);
+    result
 }

@@ -109,7 +109,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
               >
                 {workspaces.map((ws) => (
                   <option key={ws.id} value={ws.id}>
-                    {ws.displayName} ({ws.baseCurrency})
+                    {ws.displayName} · created {ws.createdAt.slice(0, 10)}
                   </option>
                 ))}
               </select>
