@@ -27,72 +27,142 @@ pub const MAX_CSV_ROWS: usize = 10000;
 pub struct CsvTransactionMapper;
 
 impl CsvTransactionMapper {
-    /// Parses exact currency amount into integer minor units without binary floating-point representation.
+    /// Parses a currency amount into integer minor units with exact integer arithmetic.
+    ///
+    /// The decimal separator is inferred from the shape of the number, so US (`1,234.56`),
+    /// European (`1.234,56`), Indian (`1,23,456.00`) and plain (`1234.56`) formats all parse to the
+    /// same value. Rules:
+    /// - Both `.` and `,` present: the rightmost one is the decimal separator, the other groups thousands.
+    /// - One separator kind, repeated: thousands grouping, no decimals.
+    /// - One separator, once: a decimal separator when 1-2 digits follow (0 digits for a trailing
+    ///   separator); thousands grouping when exactly 3 digits follow.
+    /// Anything else is rejected instead of being truncated, so no digit is silently lost.
     pub fn parse_amount_minor(raw: &str, currency: &str) -> Result<i64, String> {
-        let cleaned = raw.trim().replace(['$', '€', '£', '₹', '¥', ' '], "");
-        if cleaned.is_empty() {
-            return Ok(0);
+        // Keep digits, separators and sign markers; drop symbols, currency codes, spaces.
+        let trimmed = raw.trim();
+        let is_negative = trimmed.starts_with('-')
+            || trimmed.starts_with('\u{2212}')
+            || (trimmed.starts_with('(') && trimmed.ends_with(')'))
+            || trimmed.ends_with('-');
+        let body: String = trimmed
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '.' || *c == ',' || *c == '\'')
+            .filter(|c| *c != '\'')
+            .collect();
+        if body.is_empty() {
+            // Only a genuinely blank cell is zero. Text with no digits is a malformed amount.
+            return if trimmed.is_empty() {
+                Ok(0)
+            } else {
+                Err(format!("Invalid amount '{}'", raw))
+            };
         }
 
-        let is_negative =
-            cleaned.starts_with('-') || (cleaned.starts_with('(') && cleaned.ends_with(')'));
-        let unsigned_str = cleaned
-            .trim_start_matches('-')
-            .trim_start_matches('+')
-            .trim_start_matches('(')
-            .trim_end_matches(')')
-            .replace(',', ""); // Remove thousands separators (supports both 1,000.00 and Indian 1,00,000.00)
+        let exponent: usize = if currency.eq_ignore_ascii_case("JPY") { 0 } else { 2 };
+        let last_dot = body.rfind('.');
+        let last_comma = body.rfind(',');
+        let dots = body.matches('.').count();
+        let commas = body.matches(',').count();
 
-        let is_zero_decimal = currency.to_uppercase() == "JPY";
-
-        let minor_units = if is_zero_decimal {
-            i64::from_str(&unsigned_str)
-                .map_err(|e| format!("Invalid integer amount '{}': {}", unsigned_str, e))?
-        } else {
-            let parts: Vec<&str> = unsigned_str.split('.').collect();
-            match parts.len() {
-                1 => {
-                    let whole = i64::from_str(parts[0])
-                        .map_err(|e| format!("Invalid whole amount '{}': {}", parts[0], e))?;
-                    whole.checked_mul(100).ok_or("Amount overflow")?
-                }
-                2 => {
-                    let whole = if parts[0].is_empty() {
-                        0i64
-                    } else {
-                        i64::from_str(parts[0])
-                            .map_err(|e| format!("Invalid whole amount '{}': {}", parts[0], e))?
-                    };
-                    let frac_str = parts[1];
-                    let frac = match frac_str.len() {
-                        0 => 0i64,
-                        1 => {
-                            let digit = i64::from_str(frac_str)
-                                .map_err(|e| format!("Invalid fractional digit: {}", e))?;
-                            digit * 10
-                        }
-                        2 => i64::from_str(frac_str)
-                            .map_err(|e| format!("Invalid fractional digits: {}", e))?,
-                        _ => {
-                            // Truncate to 2 decimal places
-                            i64::from_str(&frac_str[..2])
-                                .map_err(|e| format!("Invalid fractional digits: {}", e))?
-                        }
-                    };
-                    whole
-                        .checked_mul(100)
-                        .and_then(|w| w.checked_add(frac))
-                        .ok_or("Amount overflow")?
-                }
-                _ => return Err(format!("Invalid decimal format: '{}'", unsigned_str)),
-            }
+        // Decide which character (if any) is the decimal separator.
+        let decimal_sep: Option<char> = match (last_dot, last_comma) {
+            (None, None) => None,
+            (Some(d), Some(c)) => Some(if d > c { '.' } else { ',' }),
+            (Some(d), None) => Self::single_sep_role(&body, '.', dots, d, exponent)?,
+            (None, Some(c)) => Self::single_sep_role(&body, ',', commas, c, exponent)?,
         };
 
-        Ok(if is_negative {
-            -minor_units
+        // The decimal separator may appear once; the other kind (if any) must be valid thousands grouping.
+        if let Some(sep) = decimal_sep {
+            if body.matches(sep).count() > 1 {
+                return Err(format!("Invalid amount '{}'", raw));
+            }
+        }
+        let grouping_char = match decimal_sep {
+            Some('.') => ',',
+            Some(_) => '.',
+            None => if dots > 0 { '.' } else { ',' },
+        };
+        let whole_for_grouping = match decimal_sep {
+            Some(sep) => &body[..body.rfind(sep).unwrap()],
+            None => body.as_str(),
+        };
+        if !Self::valid_grouping(whole_for_grouping, grouping_char) {
+            return Err(format!("Invalid digit grouping in amount '{}'", raw));
+        }
+
+        let (whole_part, frac_part) = match decimal_sep {
+            Some(sep) => {
+                let idx = body.rfind(sep).unwrap();
+                (body[..idx].to_string(), body[idx + 1..].to_string())
+            }
+            None => (body.clone(), String::new()),
+        };
+        let whole_digits: String = whole_part.chars().filter(|c| c.is_ascii_digit()).collect();
+        let whole = if whole_digits.is_empty() {
+            0i64
         } else {
-            minor_units
-        })
+            i64::from_str(&whole_digits).map_err(|e| format!("Invalid whole amount '{}': {}", raw, e))?
+        };
+
+        if frac_part.len() > exponent && !frac_part.chars().all(|c| c == '0') {
+            return Err(format!(
+                "Amount '{}' has more than {} decimal places for {}",
+                raw, exponent, currency
+            ));
+        }
+        let frac_digits: String = frac_part.chars().take(exponent).collect();
+        let frac = if exponent == 0 || frac_digits.is_empty() {
+            0i64
+        } else {
+            let padded = format!("{:0<width$}", frac_digits, width = exponent);
+            i64::from_str(&padded).map_err(|e| format!("Invalid fractional digits '{}': {}", raw, e))?
+        };
+
+        let scale: i64 = if exponent == 0 { 1 } else { 100 };
+        let minor = whole
+            .checked_mul(scale)
+            .and_then(|w| w.checked_add(frac))
+            .ok_or_else(|| "Amount overflow".to_string())?;
+        Ok(if is_negative { -minor } else { minor })
+    }
+
+    /// Thousands grouping must be regular: a first group of 1-3 digits, then either all groups of
+    /// three (Western/European) or middle groups of two with a final group of three (Indian).
+    fn valid_grouping(whole: &str, sep: char) -> bool {
+        let segs: Vec<&str> = whole.split(sep).collect();
+        if segs.len() == 1 {
+            return true;
+        }
+        let (first, rest) = segs.split_first().unwrap();
+        let (last, middle) = rest.split_last().unwrap();
+        let first_ok = (1..=3).contains(&first.len()) && first.chars().all(|c| c.is_ascii_digit());
+        let last_ok = last.len() == 3 && last.chars().all(|c| c.is_ascii_digit());
+        let middle_ok = middle.iter().all(|m| m.len() == 3 && m.chars().all(|c| c.is_ascii_digit()))
+            || middle.iter().all(|m| m.len() == 2 && m.chars().all(|c| c.is_ascii_digit()));
+        first_ok && last_ok && middle_ok
+    }
+
+    /// Role of a lone separator kind: `Some(sep)` if it is the decimal separator, `None` if it
+    /// groups thousands. Errors when the digits around it fit neither role.
+    fn single_sep_role(
+        body: &str,
+        sep: char,
+        count: usize,
+        last_idx: usize,
+        exponent: usize,
+    ) -> Result<Option<char>, String> {
+        if count > 1 {
+            return Ok(None); // repeated: grouping only
+        }
+        let after = body.len() - last_idx - 1;
+        match after {
+            3 => Ok(None), // exactly three digits: thousands grouping, e.g. 1,234 or 1.234
+            0 => Ok(Some(sep)),
+            1 | 2 if exponent > 0 => Ok(Some(sep)),
+            _ if exponent == 0 && body[last_idx + 1..].chars().all(|c| c == '0') => Ok(Some(sep)),
+            _ => Err(format!("Ambiguous or invalid decimal format: '{}'", body)),
+        }
     }
 
     /// Normalizes dates into standard ISO 8601 (YYYY-MM-DD).
@@ -125,6 +195,13 @@ impl CsvTransactionMapper {
         // 4. US slash format: MM/DD/YYYY
         if let Ok(d) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
             return Ok(d.format("%Y-%m-%d").to_string());
+        }
+
+        // 5. European dotted format: DD.MM.YYYY, and dashed DD-MM-YYYY
+        for fmt in ["%d.%m.%Y", "%d-%m-%Y"] {
+            if let Ok(d) = chrono::NaiveDate::parse_from_str(trimmed, fmt) {
+                return Ok(d.format("%Y-%m-%d").to_string());
+            }
         }
 
         Err(format!("Unrecognized date format: '{}'", trimmed))
@@ -250,14 +327,38 @@ impl CsvTransactionMapper {
         for (row_idx, line) in lines[1..].iter().enumerate() {
             let fields = Self::parse_csv_line(line, delimiter);
 
+            // Blank lines are skipped. A line that carries data but cannot be read as a transaction
+            // is reported with its row number, never dropped silently. Summary lines (totals,
+            // balances) are the one legitimate skip.
+            if fields.iter().all(|f| f.trim().is_empty()) {
+                continue;
+            }
+            let looks_like_summary = fields.iter().any(|f| {
+                let l = f.to_lowercase();
+                ["total", "balance", "summary", "statement", "opening", "closing"]
+                    .iter()
+                    .any(|k| l.contains(k))
+            });
+
             let raw_date = fields.get(date_idx).map(|s| s.as_str()).unwrap_or("");
-            if raw_date.is_empty() {
-                continue; // Skip summary or empty rows
+            if raw_date.trim().is_empty() {
+                if looks_like_summary {
+                    continue;
+                }
+                return Err(CsvError::RowParseError {
+                    row_index: row_idx + 1,
+                    reason: "missing date".to_string(),
+                });
             }
 
             let posted_date = match Self::normalize_date(raw_date) {
                 Ok(d) => d,
-                Err(_) => continue, // Skip unparseable headers or footer totals
+                Err(reason) => {
+                    if looks_like_summary {
+                        continue;
+                    }
+                    return Err(CsvError::RowParseError { row_index: row_idx + 1, reason });
+                }
             };
 
             let description = fields.get(desc_idx).cloned().unwrap_or_default();
@@ -301,13 +402,22 @@ impl CsvTransactionMapper {
                     .map(|s| s.as_str())
                     .unwrap_or("0");
 
-                let w_minor = Self::parse_amount_minor(w_str, &currency).unwrap_or(0);
-                let d_minor = Self::parse_amount_minor(d_str, &currency).unwrap_or(0);
+                let row_err = |reason: String| CsvError::RowParseError {
+                    row_index: row_idx + 1,
+                    reason,
+                };
+                let w_minor = Self::parse_amount_minor(w_str, &currency).map_err(&row_err)?;
+                let d_minor = Self::parse_amount_minor(d_str, &currency).map_err(&row_err)?;
 
-                if w_minor > 0 {
-                    -w_minor // Withdrawal is negative
+                if w_minor != 0 && d_minor != 0 {
+                    return Err(row_err(
+                        "both a debit and a credit amount are present".to_string(),
+                    ));
+                }
+                if w_minor != 0 {
+                    -w_minor.abs() // Withdrawal is negative
                 } else {
-                    d_minor // Deposit is positive
+                    d_minor // Deposit keeps its parsed sign (a negative deposit is a reversal)
                 }
             };
 
@@ -424,5 +534,122 @@ mod tests {
         let content = std::fs::read_to_string(path).unwrap();
         let res = CsvTransactionMapper::parse_csv_content(&content, "USD");
         assert!(res.is_err(), "Must reject CSV bomb exceeding row limit");
+    }
+}
+
+#[cfg(test)]
+mod amount_parser_tests {
+    use super::CsvTransactionMapper as M;
+
+    fn usd(s: &str) -> i64 {
+        M::parse_amount_minor(s, "USD").unwrap()
+    }
+
+    #[test]
+    fn test_us_european_and_indian_formats_agree() {
+        assert_eq!(usd("1,234.56"), 123_456);
+        assert_eq!(usd("1.234,56"), 123_456);
+        assert_eq!(usd("1,23,456.00"), 12_345_600);
+        assert_eq!(usd("2.306,22"), 230_622);
+        assert_eq!(usd("86,708.78"), 8_670_878);
+        assert_eq!(usd("1234.56"), 123_456);
+    }
+
+    #[test]
+    fn test_single_separator_roles() {
+        assert_eq!(usd("856,80"), 85_680, "comma with two digits is a decimal separator");
+        assert_eq!(usd("12.5"), 1_250);
+        assert_eq!(usd("12"), 1_200);
+        assert_eq!(usd("1,234"), 123_400, "comma with three digits groups thousands");
+        assert_eq!(usd("1.234"), 123_400);
+        assert_eq!(usd("1,000,000"), 100_000_000);
+        assert_eq!(usd("12.345,6"), 1_234_560);
+    }
+
+    #[test]
+    fn test_symbols_codes_signs_and_blanks() {
+        assert_eq!(usd("$45.50"), 4_550);
+        assert_eq!(usd("USD 128.45"), 12_845);
+        assert_eq!(usd("EUR 1.234,56"), 123_456);
+        assert_eq!(usd("(45.00)"), -4_500);
+        assert_eq!(usd("-0.05"), -5);
+        assert_eq!(usd("45.00-"), -4_500);
+        assert_eq!(usd(""), 0);
+        assert_eq!(usd("   "), 0);
+    }
+
+    #[test]
+    fn test_zero_decimal_currency() {
+        assert_eq!(M::parse_amount_minor("5000", "JPY").unwrap(), 5_000);
+        assert_eq!(M::parse_amount_minor("5,000", "JPY").unwrap(), 5_000);
+        assert_eq!(M::parse_amount_minor("5.00", "JPY").unwrap(), 5);
+        assert!(M::parse_amount_minor("5.50", "JPY").is_err(), "JPY has no fractional units");
+    }
+
+    #[test]
+    fn test_excess_precision_overflow_and_garbage_are_rejected_not_truncated() {
+        assert!(M::parse_amount_minor("1,234.567", "USD").is_err());
+        assert!(M::parse_amount_minor("99999999999999999999.99", "USD").is_err());
+        assert!(M::parse_amount_minor("92233720368547758.99", "USD").is_err());
+        assert!(M::parse_amount_minor("twelve", "USD").is_err(), "text without digits is malformed, not zero");
+        assert!(M::parse_amount_minor("1.2.3.4,5", "USD").is_err(), "irregular grouping is rejected");
+        assert!(M::parse_amount_minor("1.234.56,78", "USD").is_err());
+        assert!(M::parse_amount_minor("12,34,567.00", "USD").is_err() == false, "Indian grouping 12,34,567 is valid");
+        assert!(M::parse_amount_minor("1,2345.00", "USD").is_err(), "a four-digit group is invalid");
+    }
+}
+
+#[cfg(test)]
+mod row_handling_tests {
+    use super::{CsvError, CsvTransactionMapper as M};
+
+    const HEADER: &str = "Date,Description,Debit,Credit,Currency\n";
+
+    fn parse(body: &str) -> Result<Vec<super::ParsedTransaction>, CsvError> {
+        M::parse_csv_content(&format!("{}{}", HEADER, body), "USD")
+    }
+
+    #[test]
+    fn test_bad_debit_amount_is_a_row_error_not_zero() {
+        let err = parse("2026-09-01,GOOD,10.00,,USD\n2026-09-02,BAD,twelve,,USD\n").unwrap_err();
+        match err {
+            CsvError::RowParseError { row_index, .. } => assert_eq!(row_index, 2),
+            other => panic!("expected a row error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_row_with_data_but_no_date_is_reported() {
+        let err = parse("2026-09-01,GOOD,10.00,,USD\n,NO DATE ROW,5.00,,USD\n").unwrap_err();
+        assert!(matches!(err, CsvError::RowParseError { row_index: 2, .. }));
+    }
+
+    #[test]
+    fn test_unrecognised_date_is_reported() {
+        let err = parse("31/31/2026,IMPOSSIBLE DATE,5.00,,USD\n").unwrap_err();
+        assert!(matches!(err, CsvError::RowParseError { row_index: 1, .. }));
+    }
+
+    #[test]
+    fn test_debit_and_credit_on_one_row_is_ambiguous() {
+        let err = parse("2026-09-01,BOTH,5.00,5.00,USD\n").unwrap_err();
+        assert!(matches!(err, CsvError::RowParseError { .. }));
+    }
+
+    #[test]
+    fn test_summary_footers_and_blank_lines_are_skipped_not_errors() {
+        let rows = parse(
+            "2026-09-01,PAYMENT,10.00,,USD\n\nTotal,,10.00,,\nClosing balance,,,,\n2026-09-02,DEPOSIT,,25.00,USD\n",
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].amount_minor, -1000);
+        assert_eq!(rows[1].amount_minor, 2500);
+    }
+
+    #[test]
+    fn test_blank_amount_cells_are_a_zero_row_not_an_error() {
+        let rows = parse("2026-09-01,ZERO VALUE,,,USD\n").unwrap();
+        assert_eq!(rows[0].amount_minor, 0);
     }
 }

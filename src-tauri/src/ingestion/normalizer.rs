@@ -1,6 +1,54 @@
 use crate::ingestion::csv_mapper::CsvTransactionMapper;
 use crate::ingestion::ocr_client::{OcrLine, OcrResponse};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
+
+/// Invoice number after a label such as "Invoice No:", "Reference", "Rechnung / Invoice:" or
+/// "RECEIPTID:". The value must contain a digit, so "Invoice Date: ..." is never read as a number.
+fn invoice_number_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(?:invoice\s*(?:no\.?|number|#)|rechnung(?:\s*/\s*invoice)?|invoice|reference|ref\.?|receipt\s*id|receiptid)\s*[:#]?\s*([A-Za-z0-9_/.\-]*[0-9][A-Za-z0-9_/.\-]*)",
+        )
+        .unwrap()
+    })
+}
+
+/// Issue date label at the start of a line: "Date:", "Date", "Invoice Date:", "Issued", "Datum:".
+fn date_label_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)^(?:invoice\s*date|issue\s*date|date|issued(?:\s*on)?|datum)\s*[:\s]\s*(\S+)")
+            .unwrap()
+    })
+}
+
+/// Due date label at the start of a line: "Due Date:", "Due:", "Payment due", "Faellig:".
+fn due_label_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)^(?:due\s*date|payment\s*due|due|faellig|fällig)\s*[:\s]\s*(\S+)").unwrap()
+    })
+}
+
+/// "Due Date: <value>" appearing after other text on the same line.
+fn inline_due_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)due\s*date\s*:\s*(\S+)").unwrap())
+}
+
+/// "Date: <value>" appearing after other text on the same line.
+fn inline_date_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)date\s*:\s*(\S+)").unwrap())
+}
+
+fn currency_code_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)\b(USD|EUR|INR|GBP|JPY)\b").unwrap())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NormalizedField {
@@ -26,6 +74,7 @@ pub struct NormalizedInvoiceData {
     pub due_date: Option<String>,
     pub currency: String,
     pub subtotal_minor: i64,
+    pub discount_minor: i64,
     pub tax_minor: i64,
     pub total_minor: i64,
     pub fields: Vec<NormalizedField>,
@@ -39,16 +88,29 @@ pub struct FieldNormalizer;
 impl FieldNormalizer {
     /// Detects currency from text
     pub fn detect_currency(full_text: &str, default_currency: &str) -> String {
+        // Prefer an explicit ISO code written as a whole word; the most frequent one wins.
+        // Substring matching would misread names such as "NEUROTECH" as EUR.
+        let mut counts: Vec<(String, usize)> = Vec::new();
+        for m in currency_code_pattern().find_iter(full_text) {
+            let code = m.as_str().to_uppercase();
+            match counts.iter_mut().find(|(c, _)| *c == code) {
+                Some((_, n)) => *n += 1,
+                None => counts.push((code, 1)),
+            }
+        }
+        if let Some((code, _)) = counts.iter().max_by_key(|(_, n)| *n) {
+            return code.clone();
+        }
         let upper = full_text.to_uppercase();
-        if upper.contains("INR") || upper.contains("₹") || upper.contains("GSTIN") {
+        if upper.contains("₹") || upper.contains("GSTIN") {
             "INR".to_string()
-        } else if upper.contains("EUR") || upper.contains("€") {
+        } else if upper.contains('€') {
             "EUR".to_string()
-        } else if upper.contains("GBP") || upper.contains("£") {
+        } else if upper.contains('£') {
             "GBP".to_string()
-        } else if upper.contains("JPY") || upper.contains("¥") {
+        } else if upper.contains('¥') {
             "JPY".to_string()
-        } else if upper.contains('$') || upper.contains("USD") {
+        } else if upper.contains('$') {
             "USD".to_string()
         } else {
             default_currency.to_string()
@@ -72,6 +134,7 @@ impl FieldNormalizer {
         let mut invoice_date = None;
         let mut due_date = None;
         let mut subtotal_minor = 0i64;
+        let mut discount_minor = 0i64;
         let mut tax_minor = 0i64;
         let mut total_minor = 0i64;
 
@@ -101,8 +164,10 @@ impl FieldNormalizer {
                             bounding_box_json: bbox_str.clone(),
                         });
                     } else if !lower.contains("invoice")
-                        && !lower.contains("tax")
-                        && !lower.contains("tel")
+                        && !lower.starts_with("tax")
+                        && !lower.starts_with("tel")
+                        && !lower.contains("tel:")
+                        && !lower.starts_with("date")
                     {
                         vendor_name = text.to_string();
                         fields.push(NormalizedField {
@@ -118,26 +183,14 @@ impl FieldNormalizer {
 
                 // 2. Invoice number
                 if invoice_number.is_none() {
-                    if lower.contains("invoice no:")
-                        || lower.contains("invoice number:")
-                        || lower.contains("receiptid:")
-                    {
-                        let inv_str = if lower.contains("invoice no:") {
-                            text.split("Invoice No:").nth(1).unwrap_or("")
-                        } else if lower.contains("invoice number:") {
-                            text.split("Invoice Number:").nth(1).unwrap_or("")
-                        } else {
-                            text.split("RECEIPTID:").nth(1).unwrap_or("")
-                        }
-                        .trim();
-
-                        let clean_inv = inv_str.split_whitespace().next().unwrap_or(inv_str).trim();
+                    if let Some(caps) = invoice_number_pattern().captures(text) {
+                        let clean_inv = caps[1].trim_end_matches(['.', ',']).to_string();
                         if !clean_inv.is_empty() {
-                            invoice_number = Some(clean_inv.to_string());
+                            invoice_number = Some(clean_inv.clone());
                             fields.push(NormalizedField {
                                 field_key: "invoice_number".to_string(),
                                 original_text: text.to_string(),
-                                normalized_value: clean_inv.to_string(),
+                                normalized_value: clean_inv,
                                 confidence: line.confidence,
                                 page_num: page.page_num,
                                 bounding_box_json: bbox_str.clone(),
@@ -147,19 +200,23 @@ impl FieldNormalizer {
                 }
 
                 // 3. Invoice date & due date
+                let due_capture = due_label_pattern().captures(text);
+                let date_capture = date_label_pattern().captures(text);
                 if invoice_date.is_none()
-                    && (lower.contains("date:") || lower.contains("invoice date:"))
+                    && due_capture.is_none()
+                    && (date_capture.is_some() || lower.contains("date:"))
                 {
-                    let d_str = if lower.contains("invoice date:") {
-                        text.split("Invoice Date:").nth(1).unwrap_or("")
-                    } else {
-                        text.split("Date:")
-                            .nth(1)
-                            .or_else(|| text.split("DATE:").nth(1))
-                            .unwrap_or("")
+                    // Label at the start of the line ("Date:", "Issued", "Datum:"), or a line that
+                    // carries "... Date: <value>" after other text (e.g. a combined header line).
+                    let raw_d = match &date_capture {
+                        Some(caps) => caps[1].to_string(),
+                        None => inline_date_pattern()
+                            .captures_iter(text)
+                            .last()
+                            .map(|c| c[1].to_string())
+                            .unwrap_or_default(),
                     };
-                    let raw_d = d_str.split_whitespace().next().unwrap_or("");
-                    if let Ok(iso_d) = CsvTransactionMapper::normalize_date(raw_d) {
+                    if let Ok(iso_d) = CsvTransactionMapper::normalize_date(&raw_d) {
                         invoice_date = Some(iso_d.clone());
                         fields.push(NormalizedField {
                             field_key: "invoice_date".to_string(),
@@ -172,10 +229,13 @@ impl FieldNormalizer {
                     }
                 }
 
-                if due_date.is_none() && lower.contains("due date:") {
-                    let d_str = text.split("Due Date:").nth(1).unwrap_or("");
-                    let raw_d = d_str.split_whitespace().next().unwrap_or("");
-                    if let Ok(iso_d) = CsvTransactionMapper::normalize_date(raw_d) {
+                let due_raw = due_capture
+                    .as_ref()
+                    .map(|c| c[1].to_string())
+                    .or_else(|| inline_due_pattern().captures(text).map(|c| c[1].to_string()));
+                if due_date.is_none() && due_raw.is_some() {
+                    let raw_d = due_raw.unwrap_or_default();
+                    if let Ok(iso_d) = CsvTransactionMapper::normalize_date(&raw_d) {
                         due_date = Some(iso_d.clone());
                         fields.push(NormalizedField {
                             field_key: "due_date".to_string(),
@@ -189,7 +249,20 @@ impl FieldNormalizer {
                 }
 
                 // 4. Totals, subtotal, and tax
-                if lower.starts_with("subtotal") || lower.contains("subtotal:") {
+                if lower.starts_with("discount") {
+                    let amt = extract_amount_from_line(text, &page.lines, line_idx, &currency);
+                    if amt > 0 {
+                        discount_minor += amt;
+                        fields.push(NormalizedField {
+                            field_key: "discount".to_string(),
+                            original_text: text.to_string(),
+                            normalized_value: format!("{}", amt),
+                            confidence: line.confidence,
+                            page_num: page.page_num,
+                            bounding_box_json: bbox_str.clone(),
+                        });
+                    }
+                } else if lower.starts_with("subtotal") || lower.contains("subtotal:") {
                     let amt = extract_amount_from_line(text, &page.lines, line_idx, &currency);
                     if amt > 0 {
                         subtotal_minor = amt;
@@ -255,13 +328,23 @@ impl FieldNormalizer {
         // Validate arithmetic: subtotal + tax == total
         let mut is_arithmetic_valid = true;
         if subtotal_minor > 0 && total_minor > 0 {
-            if subtotal_minor + tax_minor != total_minor {
+            if subtotal_minor - discount_minor + tax_minor != total_minor {
                 is_arithmetic_valid = false;
                 uncertainty_reasons.push(format!(
-                    "Arithmetic discrepancy: subtotal ({}) + tax ({}) != total ({})",
-                    subtotal_minor, tax_minor, total_minor
+                    "Arithmetic discrepancy: subtotal ({}) - discount ({}) + tax ({}) != total ({})",
+                    subtotal_minor, discount_minor, tax_minor, total_minor
                 ));
             }
+        }
+        if total_minor == 0 {
+            is_arithmetic_valid = false;
+            uncertainty_reasons.push("Total amount could not be read; review required.".to_string());
+        }
+        if invoice_date.is_none() {
+            uncertainty_reasons.push("Invoice date not found in the document.".to_string());
+        }
+        if invoice_number.is_none() {
+            uncertainty_reasons.push("Invoice number not found in the document.".to_string());
         }
 
         NormalizedInvoiceData {
@@ -275,6 +358,7 @@ impl FieldNormalizer {
             due_date,
             currency,
             subtotal_minor,
+            discount_minor,
             tax_minor,
             total_minor,
             fields,
@@ -285,28 +369,70 @@ impl FieldNormalizer {
     }
 }
 
-/// Helper to parse amount from current line or peek adjacent line
+/// The last token on a line that looks like an amount, e.g. `2.306,22`, `-102,00`, `$45.50`,
+/// `USD128.45`. Percentages (`19%`) and plain words are not amounts.
+fn amount_token(text: &str) -> Option<String> {
+    for part in text.split_whitespace().rev() {
+        let t = part.trim_matches(|c: char| matches!(c, '$' | '€' | '£' | '₹' | '¥' | ':' | ';'));
+        let t = t.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+        let core = t.trim_matches(|c: char| matches!(c, '-' | '(' | ')' | '\u{2212}'));
+        let starts_with_digit = core.chars().next().map_or(false, |c| c.is_ascii_digit());
+        let only_number_chars = core
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '\''));
+        if starts_with_digit && only_number_chars {
+            return Some(t.to_string());
+        }
+    }
+    None
+}
+
+/// True when the line is only an amount, optionally with a currency code or symbol.
+fn is_amount_only_line(text: &str) -> bool {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    match amount_token(text) {
+        None => false,
+        Some(tok) => tokens.iter().all(|t| {
+            t.contains(tok.as_str())
+                || t.chars().all(|c| c.is_ascii_alphabetic() || matches!(c, '$' | '€' | '£' | '₹' | '¥'))
+                    && t.chars().count() <= 3
+        }),
+    }
+}
+
+/// Parses an amount from the current line, or from the next line when the label stands alone
+/// (OCR often reports a label and its value as separate lines). Returns the magnitude in minor
+/// units, or 0 when no amount is found.
 fn extract_amount_from_line(line_text: &str, lines: &[OcrLine], idx: usize, currency: &str) -> i64 {
-    // 1. Check if line itself contains a currency string or decimal number
-    for part in line_text.split_whitespace().rev() {
-        let clean = part.replace(['$', '€', '£', '₹', '¥'], "");
-        if clean.contains('.') || clean.chars().all(|c| c.is_ascii_digit() || c == ',') {
-            if let Ok(m) = CsvTransactionMapper::parse_amount_minor(&clean, currency) {
-                if m > 0 {
-                    return m;
+    if let Some(tok) = amount_token(line_text) {
+        if let Ok(m) = CsvTransactionMapper::parse_amount_minor(&tok, currency) {
+            if m != 0 {
+                return m.abs();
+            }
+        }
+    }
+
+    let next_is_amount = idx + 1 < lines.len() && is_amount_only_line(lines[idx + 1].text.trim());
+    if next_is_amount {
+        if let Some(tok) = amount_token(lines[idx + 1].text.trim()) {
+            if let Ok(m) = CsvTransactionMapper::parse_amount_minor(&tok, currency) {
+                if m != 0 {
+                    return m.abs();
                 }
             }
         }
     }
 
-    // 2. Check subsequent line (often amounts appear on the right column as next detected token)
-    if idx + 1 < lines.len() {
-        let next_text = &lines[idx + 1].text;
-        let clean = next_text.replace(['$', '€', '£', '₹', '¥', ' '], "");
-        if clean.contains('.') {
-            if let Ok(m) = CsvTransactionMapper::parse_amount_minor(&clean, currency) {
-                if m > 0 {
-                    return m;
+    // Rotated or skewed scans can be read value-first, so the amount precedes its label. Use the
+    // previous line only when the next line offers no amount.
+    if !next_is_amount && idx > 0 {
+        let prev_text = lines[idx - 1].text.trim();
+        if is_amount_only_line(prev_text) {
+            if let Some(tok) = amount_token(prev_text) {
+                if let Ok(m) = CsvTransactionMapper::parse_amount_minor(&tok, currency) {
+                    if m != 0 {
+                        return m.abs();
+                    }
                 }
             }
         }
