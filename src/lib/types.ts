@@ -207,6 +207,12 @@ export interface MonthAggregate {
   transactionCount: number;
 }
 
+export interface CurrencyExclusion {
+  currency: string;
+  transactionCount: number;
+  grossMinor: number;
+}
+
 export interface FinancialSummary {
   totalIncomeMinor: number;
   totalExpenseMinor: number;
@@ -214,6 +220,7 @@ export interface FinancialSummary {
   currency: string;
   monthlyBreakdown: MonthAggregate[];
   momExpenseChangePercent?: number;
+  excludedCurrencies: CurrencyExclusion[];
 }
 
 export interface ReconciliationResult {

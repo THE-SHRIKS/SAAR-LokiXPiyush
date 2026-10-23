@@ -22,6 +22,17 @@ pub struct FinancialSummary {
     pub currency: String,
     pub monthly_breakdown: Vec<MonthAggregate>,
     pub mom_expense_change_percent: Option<f64>,
+    /// Transactions left out of these totals because their currency differs from the target.
+    /// Reported so that nothing is dropped silently. Amounts are gross, in each currency's minor units.
+    pub excluded_currencies: Vec<CurrencyExclusion>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrencyExclusion {
+    pub currency: String,
+    pub transaction_count: usize,
+    pub gross_minor: i64,
 }
 
 pub struct FinancialAggregator;
@@ -35,10 +46,14 @@ impl FinancialAggregator {
         let mut monthly_map: BTreeMap<String, (i64, i64, usize)> = BTreeMap::new();
         let mut total_income = 0i64;
         let mut total_expense = 0i64;
+        let mut excluded: BTreeMap<String, (usize, i64)> = BTreeMap::new();
 
         for tx in transactions {
             // Aggregate only matching currency to avoid mixed currency corruption
             if tx.currency != target_currency {
+                let entry = excluded.entry(tx.currency.clone()).or_insert((0usize, 0i64));
+                entry.0 += 1;
+                entry.1 += tx.amount_minor.abs();
                 continue;
             }
 
@@ -99,6 +114,14 @@ impl FinancialAggregator {
             currency: target_currency.to_string(),
             monthly_breakdown,
             mom_expense_change_percent: mom_change,
+            excluded_currencies: excluded
+                .into_iter()
+                .map(|(currency, (transaction_count, gross_minor))| CurrencyExclusion {
+                    currency,
+                    transaction_count,
+                    gross_minor,
+                })
+                .collect(),
         }
     }
 }
@@ -186,5 +209,51 @@ mod tests {
         assert_eq!(summary.monthly_breakdown[1].net_cash_flow_minor, 483450);
 
         assert_eq!(summary.mom_expense_change_percent, Some(-66.9));
+    }
+}
+
+#[cfg(test)]
+mod excluded_currency_tests {
+    use super::*;
+
+    fn tx(id: &str, amount: i64, currency: &str) -> TransactionCandidate {
+        TransactionCandidate {
+            id: id.to_string(),
+            posted_date: "2026-09-01".to_string(),
+            description: "X".to_string(),
+            amount_minor: amount,
+            currency: currency.to_string(),
+            external_ref: None,
+        }
+    }
+
+    #[test]
+    fn test_other_currencies_are_excluded_from_totals_but_reported() {
+        let txs = vec![
+            tx("u1", -1000, "USD"),
+            tx("u2", 500, "USD"),
+            tx("e1", -120000, "EUR"),
+            tx("e2", 9999, "EUR"),
+            tx("i1", -1500050, "INR"),
+        ];
+        let summary = FinancialAggregator::compute_summary(&txs, "USD");
+        // Totals cover USD only.
+        assert_eq!(summary.total_expense_minor, 1000);
+        assert_eq!(summary.total_income_minor, 500);
+        // Excluded currencies are reported with exact counts and gross minor units.
+        assert_eq!(
+            summary.excluded_currencies,
+            vec![
+                CurrencyExclusion { currency: "EUR".into(), transaction_count: 2, gross_minor: 129999 },
+                CurrencyExclusion { currency: "INR".into(), transaction_count: 1, gross_minor: 1500050 },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_no_exclusions_when_all_rows_match_target() {
+        let txs = vec![tx("u1", -1000, "USD")];
+        let summary = FinancialAggregator::compute_summary(&txs, "USD");
+        assert!(summary.excluded_currencies.is_empty());
     }
 }
