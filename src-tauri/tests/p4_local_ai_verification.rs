@@ -239,6 +239,7 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
         "Response must be verified grounded without hallucinations: {}",
         chat_response.verification_note
     );
+    eprintln!("P4 grounded answer: {}", chat_response.answer);
     // Answer must cite either the invoice or transaction ID or reference
     assert!(
         chat_response.answer.contains("120") || chat_response.answer.contains("CloudHosting"),

@@ -7,8 +7,23 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+    },
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: [
+        "**/src-tauri/**",
+        "**/bin/**",
+        "**/models/**",
+        "**/target/**",
+        "**/*.dll",
+        "**/*.gguf",
+        "**/*.exe",
+        "**/*.db*",
+      ],
     },
   },
   build: {

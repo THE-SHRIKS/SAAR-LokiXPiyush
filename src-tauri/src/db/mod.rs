@@ -1,3 +1,4 @@
+pub mod chat;
 pub mod migrations;
 
 use migrations::Migrator;
@@ -7,6 +8,15 @@ use uuid::Uuid;
 
 pub struct Database {
     conn: Connection,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSummary {
+    pub id: String,
+    pub display_name: String,
+    pub base_currency: String,
+    pub created_at: String,
 }
 
 impl Database {
@@ -90,6 +100,40 @@ impl Database {
             &format!("{{\"display_name\":\"{}\"}}", display_name),
         )?;
         Ok(())
+    }
+
+    /// Lists every workspace stored in this database, newest first. Contains no key material.
+    pub fn list_workspace_summaries(&self) -> Result<Vec<WorkspaceSummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, display_name, base_currency, created_at
+             FROM workspaces
+             ORDER BY created_at DESC;",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(WorkspaceSummary {
+                id: r.get(0)?,
+                display_name: r.get(1)?,
+                base_currency: r.get(2)?,
+                created_at: r.get(3)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Returns the display metadata for one workspace.
+    pub fn get_workspace_summary(&self, workspace_id: &str) -> Result<WorkspaceSummary> {
+        self.conn.query_row(
+            "SELECT id, display_name, base_currency, created_at FROM workspaces WHERE id = ?1;",
+            params![workspace_id],
+            |r| {
+                Ok(WorkspaceSummary {
+                    id: r.get(0)?,
+                    display_name: r.get(1)?,
+                    base_currency: r.get(2)?,
+                    created_at: r.get(3)?,
+                })
+            },
+        )
     }
 
     /// Retrieves workspace salt and verification token by workspace ID.
@@ -180,5 +224,103 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1, "Audit log must contain creation record");
+    }
+
+    #[test]
+    fn test_sqlcipher_encryption_verified() {
+        let dir = std::env::temp_dir().join(format!("saar_test_cipher_{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("encrypted.db");
+
+        let key = hex::encode([0x42u8; 32]);
+
+        // 1. Create and populate encrypted DB
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key)).unwrap();
+            let cipher_ver: String = conn
+                .query_row("PRAGMA cipher_version;", [], |r| r.get(0))
+                .unwrap();
+            assert!(!cipher_ver.is_empty(), "SQLCipher must report cipher_version");
+
+            conn.execute(
+                "CREATE TABLE secret_financials (id TEXT PRIMARY KEY, amount_minor INTEGER);",
+                [],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO secret_financials VALUES ('TX-SECRET-999', 987654321);",
+                [],
+            ).unwrap();
+            // Force checkpoint to ensure data is written to disk
+            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        }
+
+        // 2. Read raw bytes directly from disk
+        let raw_bytes = std::fs::read(&db_path).unwrap();
+        // A normal SQLite DB starts with "SQLite format 3\0". An encrypted SQLCipher DB MUST NOT!
+        let sqlite_magic = b"SQLite format 3\0";
+        assert!(
+            raw_bytes.len() >= 16,
+            "Encrypted database file must have content"
+        );
+        assert_ne!(
+            &raw_bytes[..16],
+            sqlite_magic,
+            "Encrypted SQLCipher file must NOT contain plaintext SQLite format 3 header!"
+        );
+
+        // Raw bytes must not contain the plaintext strings or numbers
+        let raw_str = String::from_utf8_lossy(&raw_bytes);
+        assert!(
+            !raw_str.contains("TX-SECRET-999"),
+            "Raw database file must not expose plaintext financial records!"
+        );
+
+        // 3. Opening without key must fail
+        {
+            let conn_unauth = Connection::open(&db_path).unwrap();
+            let query_res = conn_unauth.query_row(
+                "SELECT count(*) FROM secret_financials;",
+                [],
+                |r| r.get::<_, i64>(0),
+            );
+            assert!(
+                query_res.is_err(),
+                "Reading encrypted DB without passphrase/key must strictly fail"
+            );
+        }
+
+        // 4. Opening with wrong key must fail
+        {
+            let wrong_key = hex::encode([0x99u8; 32]);
+            let conn_wrong = Connection::open(&db_path).unwrap();
+            conn_wrong.execute_batch(&format!("PRAGMA key = \"x'{}'\";", wrong_key)).unwrap();
+            let query_res = conn_wrong.query_row(
+                "SELECT count(*) FROM secret_financials;",
+                [],
+                |r| r.get::<_, i64>(0),
+            );
+            assert!(
+                query_res.is_err(),
+                "Reading encrypted DB with wrong key must strictly fail"
+            );
+        }
+
+        // 5. Opening with correct key must succeed
+        {
+            let conn_correct = Connection::open(&db_path).unwrap();
+            conn_correct.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key)).unwrap();
+            let amount: i64 = conn_correct
+                .query_row(
+                    "SELECT amount_minor FROM secret_financials WHERE id = 'TX-SECRET-999';",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(amount, 987654321);
+        }
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

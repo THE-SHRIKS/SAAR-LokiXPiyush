@@ -7,7 +7,7 @@ use zeroize::Zeroizing;
 pub const SALT_LEN: usize = 16;
 pub const KEY_LEN: usize = 32;
 
-/// OpenDeck Argon2id Key Derivation Configuration
+/// SAAR Argon2id Key Derivation Configuration
 /// Memory: 64 MiB (65,536 KiB), Iterations: 3, Parallelism: 1
 pub struct KeyDeriver;
 

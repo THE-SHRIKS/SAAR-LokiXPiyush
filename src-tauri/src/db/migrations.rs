@@ -1,6 +1,6 @@
 use rusqlite::{Connection, Result, Transaction};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 4;
+pub const CURRENT_SCHEMA_VERSION: i32 = 5;
 
 pub struct Migrator;
 
@@ -71,6 +71,58 @@ impl Migrator {
             )?;
             tx.commit()?;
         }
+
+        if current_version < 5 {
+            let tx = conn.transaction()?;
+            Self::apply_migration_v5(&tx)?;
+            tx.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (5, datetime('now'));",
+                [],
+            )?;
+            tx.commit()?;
+        }
+
+        Ok(())
+    }
+
+    fn apply_migration_v5(tx: &Transaction) -> Result<()> {
+        // 13. Durable encrypted conversation threads and messages
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS chat_threads (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                sender TEXT NOT NULL CHECK (sender IN ('user', 'assistant')),
+                body TEXT NOT NULL,
+                response_json TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );",
+            [],
+        )?;
+
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chat_threads_ws ON chat_threads(workspace_id, updated_at);",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at);",
+            [],
+        )?;
 
         Ok(())
     }

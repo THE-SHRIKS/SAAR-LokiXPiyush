@@ -70,14 +70,27 @@ impl OcrClient {
         let candidate_bins = vec![
             root.join(".bin/python3"),
             root.join(".bin/python.exe"),
-            PathBuf::from("/home/theshriksloki/OpenDeck/.bin/python3"),
+            root.join(".venv/Scripts/python.exe"),
+            root.join("venv/Scripts/python.exe"),
             PathBuf::from("/usr/bin/python3"),
             PathBuf::from("python3"),
             PathBuf::from("python"),
             PathBuf::from("python.exe"),
         ];
 
-        let python_bin = candidate_bins.into_iter().find(|p| p.exists());
+        let mut resolved_py = candidate_bins.into_iter().find(|p| p.is_file());
+        if resolved_py.is_none() {
+            if let Some(path_var) = std::env::var_os("PATH") {
+                for dir in std::env::split_paths(&path_var) {
+                    let cand = if cfg!(windows) { dir.join("python.exe") } else { dir.join("python3") };
+                    if cand.is_file() {
+                        resolved_py = Some(cand);
+                        break;
+                    }
+                }
+            }
+        }
+        let python_bin = resolved_py;
 
         if standalone_bin.is_none() && python_bin.is_none() {
             return Err(OcrError::RuntimeNotFound);

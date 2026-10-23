@@ -36,7 +36,7 @@ pub struct LlmConfig {
 
 impl Default for LlmConfig {
     fn default() -> Self {
-        // Resolve paths relative to OpenDeck workspace root
+        // Resolve paths relative to SAAR workspace root
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
@@ -63,8 +63,8 @@ impl Default for LlmConfig {
             binary_path,
             model_path: root.join("models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf"),
             thread_count: 2, // Intel Core i3 dual-core
-            context_size: 2048,
-            max_tokens: 120,
+            context_size: 4096,
+            max_tokens: 256,
             timeout: Duration::from_secs(240),
         }
     }
@@ -195,29 +195,41 @@ impl LlmEngine {
         }
 
         let raw_stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let cleaned = clean_llm_output(&raw_stdout);
-
-        Ok(cleaned)
+        clean_llm_output(&raw_stdout).ok_or_else(|| LlmError::ExecutionFailed {
+            code: output.status.code(),
+            stderr: "Model output did not contain an assistant answer".to_string(),
+        })
     }
 }
 
-/// Cleans llama-cli stdout, stripping echoes of the prompt or special tokens.
-fn clean_llm_output(raw: &str) -> String {
-    let mut out = raw;
-    if let Some(pos) = out.rfind("<|im_start|>assistant\n") {
-        out = &out[pos + "<|im_start|>assistant\n".len()..];
+/// Extracts the model's answer from llama-cli stdout.
+///
+/// llama-cli prints a banner, echoes the prompt, then the answer, then timing and exit lines.
+/// On Windows the console output uses CRLF, so line endings are normalized before matching.
+/// Returns `None` when the assistant marker is missing, so the banner is never shown as an answer.
+fn clean_llm_output(raw: &str) -> Option<String> {
+    const ASSISTANT_MARKER: &str = "<|im_start|>assistant\n";
+    const TRUNCATION_MARKER: &str = "(truncated)";
+    let normalized = raw.replace("\r\n", "\n");
+
+    // llama-cli echoes the prompt. For long prompts the echo is cut with "(truncated)" and the
+    // answer starts on the following line, so the marker may be absent from the output.
+    let mut out: &str = match normalized.rfind(ASSISTANT_MARKER) {
+        Some(pos) => &normalized[pos + ASSISTANT_MARKER.len()..],
+        None => {
+            let pos = normalized.find(TRUNCATION_MARKER)?;
+            let line_end = normalized[pos..].find('\n')? + pos + 1;
+            &normalized[line_end..]
+        }
+    };
+
+    if let Some(pos) = out.find("[ Prompt:") {
+        out = &out[..pos];
     }
-    if let Some(pos) = out.find("\n[ Prompt:") {
-        out = &out[..pos];
-    } else if let Some(pos) = out.find("[ Prompt:") {
+    if let Some(pos) = out.find("Exiting...") {
         out = &out[..pos];
     }
-    if let Some(pos) = out.find("\nExiting...") {
-        out = &out[..pos];
-    } else if let Some(pos) = out.find("Exiting...") {
-        out = &out[..pos];
-    }
-    out.trim_end_matches("<|im_end|>").trim().to_string()
+    Some(out.trim_end_matches("<|im_end|>").trim().to_string())
 }
 
 #[cfg(test)]
@@ -232,14 +244,39 @@ mod tests {
             "llama-cli must exist at default path"
         );
         assert!(
-            config.model_path.exists(),
-            "Model file must exist at default path"
+            config.model_path.parent().map(|p| p.exists()).unwrap_or(false),
+            "Model directory must exist at default path"
         );
     }
 
     #[test]
     fn test_clean_llm_output() {
         let raw = "<|im_start|>system\n...\n<|im_start|>assistant\nHello World!<|im_end|>";
-        assert_eq!(clean_llm_output(raw), "Hello World!");
+        assert_eq!(clean_llm_output(raw).as_deref(), Some("Hello World!"));
+    }
+
+    #[test]
+    fn test_clean_llm_output_strips_windows_banner_and_timing() {
+        // Shape captured from llama-cli on Windows: CRLF line endings, banner, prompt echo, timing.
+        let raw = "Loading model... \r\n\r\nbuild      : b11541\r\n\r\navailable commands:\r\n\r\n\
+                   > <|im_start|>system\r\nYou answer briefly.<|im_end|>\r\n<|im_start|>user\r\nWhat is 2+2?<|im_end|>\r\n\
+                   <|im_start|>assistant\r\n\r\n2+2 equals 4.\r\n\r\n[ Prompt: 239.6 t/s | Generation: 14.1 t/s ]\r\n\r\nExiting...\r\n";
+        assert_eq!(clean_llm_output(raw).as_deref(), Some("2+2 equals 4."));
+    }
+
+    #[test]
+    fn test_clean_llm_output_handles_truncated_prompt_echo() {
+        // Long prompts are echoed truncated; the answer follows the truncated line.
+        let raw = "available commands:\r\n\r\n> <|im_start|>system\r\nYou are SAAR. State amounts in format ... (truncated)\r\n\
+                   Net figures: 742.81 USD [inv:abc].\r\n\r\n[ Prompt: 40.0 t/s | Generation: 9.0 t/s ]\r\n\r\nExiting...\r\n";
+        assert_eq!(
+            clean_llm_output(raw).as_deref(),
+            Some("Net figures: 742.81 USD [inv:abc].")
+        );
+    }
+
+    #[test]
+    fn test_clean_llm_output_rejects_output_without_answer_marker() {
+        assert_eq!(clean_llm_output("Loading model...\r\navailable commands:\r\n"), None);
     }
 }

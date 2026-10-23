@@ -72,16 +72,29 @@ pub struct DocumentDetails {
 
 #[tauri::command]
 pub fn get_system_status(state: State<AppState>) -> SystemStatus {
+    let ocr_ready = state.ocr_client.lock().unwrap().is_some();
+    let llm_ready = state.llm_engine.lock().unwrap().is_some();
+    let has_key = state.active_master_key.lock().unwrap().is_some();
+    let database_encrypted = if let Some(ref db) = *state.db.lock().unwrap() {
+        let is_sqlcipher: rusqlite::Result<String> = db.conn_ref().query_row("PRAGMA cipher_version;", [], |r| r.get(0));
+        is_sqlcipher.is_ok() && has_key
+    } else {
+        false
+    };
     let ws_guard = state.active_workspace_id.lock().unwrap();
     SystemStatus {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         platform: std::env::consts::OS.to_string(),
         offline: true, // Runtime strictly offline
-        ocr_ready: true,
-        llm_ready: true,
-        llm_model_id: "qwen-2.5-3b-instruct-q3_k_m".to_string(),
+        ocr_ready,
+        llm_ready,
+        llm_model_id: if llm_ready {
+            "qwen-2.5-3b-instruct-q3_k_m".to_string()
+        } else {
+            "none".to_string()
+        },
         active_workspace_id: ws_guard.clone(),
-        database_encrypted: true,
+        database_encrypted,
     }
 }
 
@@ -142,6 +155,9 @@ pub fn unlock_workspace(
         .map_err(|_| "Workspace not found.".to_string())?;
 
     let master_key = KeyDeriver::verify_passphrase(&passphrase, &salt, &expected_token)?;
+    let summary = db
+        .get_workspace_summary(&workspace_id)
+        .map_err(|e| format!("Database error: {}", e))?;
 
     // Set active unlocked state
     drop(db_guard);
@@ -149,13 +165,22 @@ pub fn unlock_workspace(
     *state.active_master_key.lock().unwrap() = Some(master_key);
 
     Ok(WorkspaceInfo {
-        id: workspace_id,
-        display_name: "Active Workspace".to_string(),
-        base_currency: "USD".to_string(),
+        id: summary.id,
+        display_name: summary.display_name,
+        base_currency: summary.base_currency,
         schema_version: 1,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: summary.created_at,
         is_unlocked: true,
     })
+}
+
+/// Lists workspaces that can be unlocked. Returns metadata only, never key material.
+#[tauri::command]
+pub fn list_workspaces(state: State<AppState>) -> Result<Vec<crate::db::WorkspaceSummary>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    db.list_workspace_summaries()
+        .map_err(|e| format!("Database error: {}", e))
 }
 
 #[tauri::command]
@@ -829,54 +854,199 @@ pub fn get_financial_summary(
     Ok(crate::finance::aggregates::FinancialAggregator::compute_summary(&transactions, &currency))
 }
 
+fn db_err(e: rusqlite::Error) -> String {
+    format!("Database error: {}", e)
+}
+
+fn active_workspace_id(state: &State<AppState>) -> Result<String, String> {
+    state
+        .active_workspace_id
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "No workspace is unlocked.".to_string())
+}
+
+fn ensure_thread_owned(conn: &rusqlite::Connection, ws_id: &str, thread_id: &str) -> Result<(), String> {
+    if crate::db::chat::thread_belongs_to(conn, ws_id, thread_id).map_err(db_err)? {
+        Ok(())
+    } else {
+        Err("Conversation not found in this workspace.".to_string())
+    }
+}
+
+fn persist_assistant_message(
+    state: &State<AppState>,
+    ws_id: &str,
+    thread_id: &str,
+    response: &crate::ai::GroundedChatResponse,
+) -> Result<(), String> {
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    crate::db::chat::insert_message(
+        db.conn_ref(),
+        ws_id,
+        thread_id,
+        &Uuid::new_v4().to_string(),
+        "assistant",
+        &response.answer,
+        Some(response),
+    )
+    .map_err(db_err)?;
+    crate::db::chat::touch_thread(db.conn_ref(), thread_id).map_err(db_err)
+}
+
+/// Answers a question in a stored conversation. The question and the answer are both
+/// persisted to the encrypted workspace. The model answers from a fact packet built from the
+/// workspace records; no canned answers are produced.
 #[tauri::command]
 pub fn chat_grounded(
     state: State<AppState>,
+    thread_id: String,
     query: String,
 ) -> Result<crate::ai::GroundedChatResponse, String> {
-    let ws_guard = state.active_workspace_id.lock().unwrap();
-    let ws_id = ws_guard
-        .as_ref()
-        .ok_or("No workspace is unlocked.")?
-        .clone();
-    drop(ws_guard);
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Err("Question cannot be empty.".to_string());
+    }
+    let ws_id = active_workspace_id(&state)?;
+    let quarantined = crate::ai::AdversarialDefense::contains_prompt_injection(&query);
 
-    // Defense: Detect adversarial prompt injection
-    if crate::ai::AdversarialDefense::contains_prompt_injection(&query) {
-        return Ok(crate::ai::GroundedChatResponse {
-            answer: "Adversarial prompt injection detected and quarantined. The query was rejected by local safety boundaries.".to_string(),
+    // Phase 1: persist the question and build the fact packet while holding the DB lock.
+    let fact_packet = {
+        let db_guard = state.db.lock().unwrap();
+        let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+        let conn = db.conn_ref();
+        ensure_thread_owned(conn, &ws_id, &thread_id)?;
+
+        let base_currency = db.get_workspace_summary(&ws_id).map_err(db_err)?.base_currency;
+        let is_first_message = crate::db::chat::message_count(conn, &thread_id).map_err(db_err)? == 0;
+
+        crate::db::chat::insert_message(
+            conn,
+            &ws_id,
+            &thread_id,
+            &Uuid::new_v4().to_string(),
+            "user",
+            &query,
+            None,
+        )
+        .map_err(db_err)?;
+        if is_first_message {
+            crate::db::chat::rename_thread(conn, &thread_id, &crate::db::chat::title_from_query(&query))
+                .map_err(db_err)?;
+        }
+
+        if quarantined {
+            None
+        } else {
+            Some(
+                crate::ai::GroundingEngine::build_fact_packet(conn, &ws_id, &query, &base_currency)
+                    .map_err(|e| format!("Failed to build fact packet: {}", e))?,
+            )
+        }
+    };
+
+    // Phase 2: run local inference without holding the DB lock.
+    let response = match fact_packet {
+        None => crate::ai::GroundedChatResponse {
+            answer: "This question was quarantined by the local safety boundary and was not answered.".to_string(),
             intent: crate::ai::QueryIntent::GeneralFinancial,
             citations: Vec::new(),
             grounded: false,
             verification_note: "Quarantined by AdversarialDefense engine.".to_string(),
-        });
-    }
+        },
+        Some(packet) => {
+            let (system_prompt, user_prompt) = crate::ai::GroundingEngine::build_prompts(&packet);
+            let llm_guard = state.llm_engine.lock().unwrap();
+            let llm = llm_guard
+                .as_ref()
+                .ok_or("The local language model is not loaded. Check the bundled model files.")?;
+            let raw_answer = llm
+                .generate(&system_prompt, &user_prompt, None)
+                .map_err(|e| format!("Local model inference failed: {}", e))?;
+            drop(llm_guard);
+            crate::ai::GroundingEngine::validate_and_parse_response(&packet, &raw_answer)
+        }
+    };
+
+    // Phase 3: persist the answer and bump the thread's recency.
+    persist_assistant_message(&state, &ws_id, &thread_id, &response)?;
+    Ok(response)
+}
+
+#[tauri::command]
+pub fn list_chat_threads(
+    state: State<AppState>,
+) -> Result<Vec<crate::db::chat::ChatThreadRecord>, String> {
+    let ws_id = active_workspace_id(&state)?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    crate::db::chat::list_threads(db.conn_ref(), &ws_id).map_err(db_err)
+}
+
+#[tauri::command]
+pub fn create_chat_thread(
+    state: State<AppState>,
+    title: Option<String>,
+) -> Result<crate::db::chat::ChatThreadRecord, String> {
+    let ws_id = active_workspace_id(&state)?;
+    let thread_id = Uuid::new_v4().to_string();
+    let title = title
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "New conversation".to_string());
 
     let db_guard = state.db.lock().unwrap();
     let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    crate::db::chat::create_thread(db.conn_ref(), &ws_id, &thread_id, &title).map_err(db_err)?;
+    crate::db::chat::get_thread(db.conn_ref(), &ws_id, &thread_id)
+        .map_err(db_err)?
+        .ok_or_else(|| "Conversation was not saved.".to_string())
+}
 
-    // Build fact packet from active workspace records
-    let fact_packet =
-        crate::ai::GroundingEngine::build_fact_packet(db.conn_ref(), &ws_id, &query, "USD")
-            .map_err(|e| format!("Failed to build fact packet: {}", e))?;
-    drop(db_guard);
+#[tauri::command]
+pub fn list_chat_messages(
+    state: State<AppState>,
+    thread_id: String,
+) -> Result<Vec<crate::db::chat::ChatMessageRecord>, String> {
+    let ws_id = active_workspace_id(&state)?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    ensure_thread_owned(db.conn_ref(), &ws_id, &thread_id)?;
+    crate::db::chat::list_messages(db.conn_ref(), &ws_id, &thread_id).map_err(db_err)
+}
 
-    let (system_prompt, user_prompt) = crate::ai::GroundingEngine::build_prompts(&fact_packet);
+#[tauri::command]
+pub fn rename_chat_thread(state: State<AppState>, thread_id: String, title: String) -> Result<(), String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("Conversation title cannot be empty.".to_string());
+    }
+    let title: String = title.chars().take(120).collect();
+    let ws_id = active_workspace_id(&state)?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    ensure_thread_owned(db.conn_ref(), &ws_id, &thread_id)?;
+    crate::db::chat::rename_thread(db.conn_ref(), &thread_id, &title).map_err(db_err)
+}
 
-    let llm_guard = state.llm_engine.lock().unwrap();
-    let llm = llm_guard
-        .as_ref()
-        .ok_or("Local LLM engine uninitialized.")?;
+#[tauri::command]
+pub fn set_chat_thread_pinned(state: State<AppState>, thread_id: String, pinned: bool) -> Result<(), String> {
+    let ws_id = active_workspace_id(&state)?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    ensure_thread_owned(db.conn_ref(), &ws_id, &thread_id)?;
+    crate::db::chat::set_pinned(db.conn_ref(), &thread_id, pinned).map_err(db_err)
+}
 
-    let raw_answer = llm
-        .generate(&system_prompt, &user_prompt, None)
-        .map_err(|e| format!("Local model inference failed: {}", e))?;
-    drop(llm_guard);
-
-    Ok(crate::ai::GroundingEngine::validate_and_parse_response(
-        &fact_packet,
-        &raw_answer,
-    ))
+#[tauri::command]
+pub fn delete_chat_thread(state: State<AppState>, thread_id: String) -> Result<(), String> {
+    let ws_id = active_workspace_id(&state)?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    ensure_thread_owned(db.conn_ref(), &ws_id, &thread_id)?;
+    crate::db::chat::delete_thread(db.conn_ref(), &thread_id).map_err(db_err)
 }
 
 #[tauri::command]

@@ -365,7 +365,7 @@ impl ReportGenerator {
                     9.0,
                     60.0,
                     746.0,
-                    "OPENDECK RECONCILIATION REPORT (CONTINUED)",
+                    "SAAR RECONCILIATION REPORT (CONTINUED)",
                 );
                 let page_meta = format!("Workspace: {workspace_name} | Period: {period}");
                 pdf.draw_text_right("F1", 8.0, 555.0, 746.0, &page_meta);

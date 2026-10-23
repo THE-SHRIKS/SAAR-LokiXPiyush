@@ -145,7 +145,7 @@ mod tests {
     fn test_supervisor_allows_local_args() {
         let good_args = vec![
             "--model",
-            "/home/theshriksloki/OpenDeck/models/weights/model.gguf",
+            "models/weights/model.gguf",
             "--temp",
             "0.0",
         ];
@@ -156,8 +156,12 @@ mod tests {
     #[test]
     fn test_child_guard_kills_on_drop() {
         // Spawn a sleep process that would run for 60 seconds
-        let guard = WorkerSupervisor::spawn_worker("sleep", &["60"]).unwrap();
-        let pid = guard.id().expect("Child must have PID");
+        let guard = if cfg!(windows) {
+            WorkerSupervisor::spawn_worker("ping", &["127.0.0.1", "-n", "60"]).unwrap()
+        } else {
+            WorkerSupervisor::spawn_worker("sleep", &["60"]).unwrap()
+        };
+        let _pid = guard.id().expect("Child must have PID");
 
         #[cfg(target_os = "linux")]
         {
@@ -186,7 +190,11 @@ mod tests {
 
     #[test]
     fn test_child_guard_timeout() {
-        let mut guard = WorkerSupervisor::spawn_worker("sleep", &["10"]).unwrap();
+        let mut guard = if cfg!(windows) {
+            WorkerSupervisor::spawn_worker("ping", &["127.0.0.1", "-n", "10"]).unwrap()
+        } else {
+            WorkerSupervisor::spawn_worker("sleep", &["10"]).unwrap()
+        };
         let result = guard.wait_with_timeout(Duration::from_millis(150));
         assert!(result.is_err());
         match result.unwrap_err() {

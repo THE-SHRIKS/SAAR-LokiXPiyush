@@ -1,12 +1,16 @@
 /**
- * Typed Tauri Command Bridge for SAAR
- * Bridges React UI to the trusted Rust core via Tauri invoke().
+ * Typed IPC bridge for SAAR.
+ *
+ * SAAR runs only inside the Tauri desktop shell. Every method maps to a command
+ * registered in `src-tauri/src/lib.rs`, so the UI never renders data that did not
+ * come from the encrypted local workspace.
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import {
   SystemStatus,
   WorkspaceInfo,
+  WorkspaceSummary,
   DocumentRecord,
   TransactionRecord,
   DocumentDetails,
@@ -22,228 +26,171 @@ import {
   AuditEventRecord,
   ExportResult,
   BackupManifest,
+  ChatThreadRecord,
+  ChatMessageRecord,
 } from "./types";
 
+const isTauri =
+  typeof window !== "undefined" &&
+  Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
+function call<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+  if (!isTauri) {
+    return Promise.reject(
+      new Error("SAAR must run inside the desktop application. Start it with the Tauri shell."),
+    );
+  }
+  return invoke<T>(command, args);
+}
+
 export class SaarApi {
-  /**
-   * Retrieves host runtime state, offline verification, and engine statuses.
-   */
-  static async getSystemStatus(): Promise<SystemStatus> {
-    try {
-      return await invoke<SystemStatus>("get_system_status");
-    } catch (err) {
-      console.warn("Tauri invoke unavailable, running in preview/test harness", err);
-      return {
-        appVersion: "0.1.0",
-        platform: "linux",
-        offline: true,
-        ocrReady: true,
-        llmReady: true,
-        llmModelId: "qwen-2.5-3b-instruct-q3_k_m",
-        activeWorkspaceId: null,
-        databaseEncrypted: true,
-      };
-    }
+  static getSystemStatus(): Promise<SystemStatus> {
+    return call<SystemStatus>("get_system_status");
   }
 
-  /**
-   * Derives workspace encryption key and unlocks database.
-   */
-  static async unlockWorkspace(workspaceId: string, passphrase: string): Promise<WorkspaceInfo> {
-    return await invoke<WorkspaceInfo>("unlock_workspace", { workspaceId, passphrase });
+  static listWorkspaces(): Promise<WorkspaceSummary[]> {
+    return call<WorkspaceSummary[]>("list_workspaces");
   }
 
-  /**
-   * Closes database connection, clears memory keys, and locks workspace.
-   */
-  static async lockWorkspace(): Promise<void> {
-    return await invoke<void>("lock_workspace");
-  }
-
-  /**
-   * Creates a new encrypted workspace initialized with Argon2id salt.
-   */
-  static async createWorkspace(
-    displayName: string,
+  static createWorkspace(
+    workspaceName: string,
     passphrase: string,
-    baseCurrency: string
+    baseCurrency: string,
   ): Promise<WorkspaceInfo> {
-    return await invoke<WorkspaceInfo>("create_workspace", {
-      displayName,
+    return call<WorkspaceInfo>("create_workspace", {
+      displayName: workspaceName,
       passphrase,
       baseCurrency,
     });
   }
 
-  /**
-   * Fetches ingested documents for the active workspace.
-   */
-  static async listDocuments(): Promise<DocumentRecord[]> {
-    return await invoke<DocumentRecord[]>("list_documents");
+  static unlockWorkspace(workspaceId: string, passphrase: string): Promise<WorkspaceInfo> {
+    return call<WorkspaceInfo>("unlock_workspace", { workspaceId, passphrase });
   }
 
-  /**
-   * Fetches reconciled/imported transactions for the active workspace.
-   */
-  static async listTransactions(): Promise<TransactionRecord[]> {
-    return await invoke<TransactionRecord[]>("list_transactions");
+  static lockWorkspace(): Promise<void> {
+    return call<void>("lock_workspace");
   }
 
-  /**
-   * Ingests a local file (PDF, PNG, JPG, CSV) into the encrypted workspace.
-   */
-  static async ingestFile(filePath: string): Promise<IngestResult> {
-    return await invoke<IngestResult>("ingest_file", { filePath });
+  static listDocuments(): Promise<DocumentRecord[]> {
+    return call<DocumentRecord[]>("list_documents");
   }
 
-  /**
-   * Fetches extracted document data with bounding boxes and line items.
-   */
-  static async getDocumentDetails(documentId: string): Promise<DocumentDetails> {
-    return await invoke<DocumentDetails>("get_document_details", { documentId });
+  static listTransactions(): Promise<TransactionRecord[]> {
+    return call<TransactionRecord[]>("list_transactions");
   }
 
-  /**
-   * Fetches decrypted document preview bytes (base64 data URI).
-   */
-  static async getDocumentPreview(documentId: string): Promise<DocumentPreview> {
-    return await invoke<DocumentPreview>("get_document_preview", { documentId });
+  static ingestFile(filePath: string): Promise<IngestResult> {
+    return call<IngestResult>("ingest_file", { filePath });
   }
 
-  /**
-   * Triggers deterministic reconciliation engine over active workspace records.
-   */
-  static async runReconciliation(): Promise<ReconciliationResult> {
-    return await invoke<ReconciliationResult>("run_reconciliation");
+  static getDocumentDetails(documentId: string): Promise<DocumentDetails> {
+    return call<DocumentDetails>("get_document_details", { documentId });
   }
 
-  /**
-   * Retrieves proposed and reviewed reconciliation links.
-   */
-  static async listReconciliationLinks(): Promise<ProposedLink[]> {
-    return await invoke<ProposedLink[]>("list_reconciliation_links");
+  static getDocumentPreview(documentId: string): Promise<DocumentPreview> {
+    return call<DocumentPreview>("get_document_preview", { documentId });
   }
 
-  /**
-   * Retrieves active financial anomalies and duplicate alerts.
-   */
-  static async listAnomalies(): Promise<FinancialAnomaly[]> {
-    return await invoke<FinancialAnomaly[]>("list_anomalies");
+  static runReconciliation(): Promise<ReconciliationResult> {
+    return call<ReconciliationResult>("run_reconciliation");
   }
 
-  /**
-   * Approves a proposed match link between invoice and transaction.
-   */
-  static async approveReconciliationLink(linkId: string): Promise<void> {
-    return await invoke<void>("approve_reconciliation_link", { linkId });
+  static listReconciliationLinks(): Promise<ProposedLink[]> {
+    return call<ProposedLink[]>("list_reconciliation_links");
   }
 
-  /**
-   * Rejects a proposed match link.
-   */
-  static async rejectReconciliationLink(
-    linkId: string,
-    reason = "Rejected by user"
-  ): Promise<void> {
-    return await invoke<void>("reject_reconciliation_link", { linkId, reason });
+  static listAnomalies(): Promise<FinancialAnomaly[]> {
+    return call<FinancialAnomaly[]>("list_anomalies");
   }
 
-  /**
-   * User manual correction of transaction description with full audit logging.
-   */
-  static async correctTransaction(transactionId: string, newDescription: string): Promise<void> {
-    return await invoke<void>("correct_transaction", { transactionId, newDescription });
+  static approveReconciliationLink(linkId: string): Promise<void> {
+    return call<void>("approve_reconciliation_link", { linkId });
   }
 
-  /**
-   * Retrieves immutable audit log events.
-   */
-  static async listAuditLog(): Promise<AuditEventRecord[]> {
-    return await invoke<AuditEventRecord[]>("list_audit_log");
+  static rejectReconciliationLink(linkId: string): Promise<void> {
+    return call<void>("reject_reconciliation_link", { linkId });
   }
 
-  /**
-   * Computes deterministic financial summary and monthly breakdown in integer minor units.
-   */
-  static async getFinancialSummary(currency = "USD"): Promise<FinancialSummary> {
-    return await invoke<FinancialSummary>("get_financial_summary", { currency });
+  static correctTransaction(transactionId: string, newDescription: string): Promise<void> {
+    return call<void>("correct_transaction", { transactionId, newDescription });
   }
 
-  /**
-   * Local grounded Q&A with Fact Packet citations and hallucination verification.
-   */
-  static async chatGrounded(query: string): Promise<GroundedChatResponse> {
-    return await invoke<GroundedChatResponse>("chat_grounded", { query });
+  static listAuditLog(): Promise<AuditEventRecord[]> {
+    return call<AuditEventRecord[]>("list_audit_log");
   }
 
-  /**
-   * Local GBNF-constrained expense & revenue category proposal.
-   */
-  static async classifyTransaction(transactionId: string): Promise<CategoryProposal> {
-    return await invoke<CategoryProposal>("classify_transaction", { transactionId });
+  static getFinancialSummary(currency: string): Promise<FinancialSummary> {
+    return call<FinancialSummary>("get_financial_summary", { currency });
   }
 
-  /**
-   * Approves a transaction category classification with immutable audit logging.
-   */
-  static async approveCategory(proposalId: string): Promise<void> {
-    return await invoke<void>("approve_category", { proposalId });
+  static listChatThreads(): Promise<ChatThreadRecord[]> {
+    return call<ChatThreadRecord[]>("list_chat_threads");
   }
 
-  /**
-   * Fast full-text search across all documents and transactions via SQLite FTS5.
-   */
-  static async searchWorkspace(query: string): Promise<SearchResult[]> {
-    return await invoke<SearchResult[]>("search_workspace", { query });
+  static createChatThread(title?: string): Promise<ChatThreadRecord> {
+    return call<ChatThreadRecord>("create_chat_thread", { title: title ?? null });
   }
 
-  /**
-   * Generates and exports source-traceable PDF or CSV reconciliation report.
-   */
-  static async exportReconciliationReport(
-    format: "pdf" | "csv",
-    destinationPath?: string
-  ): Promise<ExportResult> {
-    return await invoke<ExportResult>("export_reconciliation_report", {
+  static listChatMessages(threadId: string): Promise<ChatMessageRecord[]> {
+    return call<ChatMessageRecord[]>("list_chat_messages", { threadId });
+  }
+
+  static renameChatThread(threadId: string, title: string): Promise<void> {
+    return call<void>("rename_chat_thread", { threadId, title });
+  }
+
+  static setChatThreadPinned(threadId: string, pinned: boolean): Promise<void> {
+    return call<void>("set_chat_thread_pinned", { threadId, pinned });
+  }
+
+  static deleteChatThread(threadId: string): Promise<void> {
+    return call<void>("delete_chat_thread", { threadId });
+  }
+
+  static chatGrounded(threadId: string, query: string): Promise<GroundedChatResponse> {
+    return call<GroundedChatResponse>("chat_grounded", { threadId, query });
+  }
+
+  static classifyTransaction(transactionId: string): Promise<CategoryProposal> {
+    return call<CategoryProposal>("classify_transaction", { transactionId });
+  }
+
+  static approveCategory(proposalId: string): Promise<void> {
+    return call<void>("approve_category", { proposalId });
+  }
+
+  static searchWorkspace(query: string): Promise<SearchResult[]> {
+    return call<SearchResult[]>("search_workspace", { query });
+  }
+
+  static exportReconciliationReport(format: "pdf" | "csv"): Promise<ExportResult> {
+    return call<ExportResult>("export_reconciliation_report", {
       format,
-      destinationPath: destinationPath || null,
+      destinationPath: null,
     });
   }
 
-  /**
-   * Lists historical report exports with snapshot hashes and file paths.
-   */
-  static async listReportExports(): Promise<ExportResult[]> {
-    return await invoke<ExportResult[]>("list_report_exports");
+  static listReportExports(): Promise<ExportResult[]> {
+    return call<ExportResult[]>("list_report_exports");
   }
 
-  /**
-   * Creates an encrypted authenticated .saar backup archive of database and blobs.
-   */
-  static async createEncryptedBackup(
-    passphrase: string,
-    destinationPath?: string
-  ): Promise<BackupManifest> {
-    return await invoke<BackupManifest>("create_encrypted_backup", {
+  static createEncryptedBackup(passphrase: string, destinationPath?: string): Promise<BackupManifest> {
+    return call<BackupManifest>("create_encrypted_backup", {
       passphrase,
       destinationPath: destinationPath || null,
     });
   }
 
-  /**
-   * Restores an encrypted authenticated .saar backup archive into target directories.
-   */
-  static async restoreEncryptedBackup(
+  static restoreEncryptedBackup(
     archivePath: string,
     passphrase: string,
-    targetDataDir?: string
+    targetDataDir?: string,
   ): Promise<BackupManifest> {
-    return await invoke<BackupManifest>("restore_encrypted_backup", {
+    return call<BackupManifest>("restore_encrypted_backup", {
       archivePath,
       passphrase,
       targetDataDir: targetDataDir || null,
     });
   }
 }
-
-export const OpenDeckApi = SaarApi;
