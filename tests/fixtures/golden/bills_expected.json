@@ -1,0 +1,319 @@
+{
+  "synthetic": true,
+  "invoice_count": 30,
+  "invoices": [
+    {
+      "file": "invoice_01.pdf",
+      "invoice_number": "INV-2026-0001",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-06-01",
+      "subtotal_minor": 12000,
+      "tax_minor": 2160,
+      "total_minor": 14160
+    },
+    {
+      "file": "invoice_02.pdf",
+      "invoice_number": "INV-2026-0002",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-06-05",
+      "subtotal_minor": 20060,
+      "tax_minor": 0,
+      "total_minor": 20060
+    },
+    {
+      "file": "invoice_03.pdf",
+      "invoice_number": "INV-2026-0003",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-06-09",
+      "subtotal_minor": 110325,
+      "tax_minor": 19859,
+      "total_minor": 130184
+    },
+    {
+      "file": "invoice_04.pdf",
+      "invoice_number": "INV-2026-0004",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-06-13",
+      "subtotal_minor": 2500,
+      "tax_minor": 0,
+      "total_minor": 2500
+    },
+    {
+      "file": "invoice_05.pdf",
+      "invoice_number": "INV-2026-0005",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-06-17",
+      "subtotal_minor": 52875,
+      "tax_minor": 2644,
+      "total_minor": 55519
+    },
+    {
+      "file": "invoice_06.pdf",
+      "invoice_number": "INV-2026-0006",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-06-21",
+      "subtotal_minor": 77295,
+      "tax_minor": 13913,
+      "total_minor": 91208
+    },
+    {
+      "file": "invoice_07.pdf",
+      "invoice_number": "INV-2026-0007",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-06-25",
+      "subtotal_minor": 84000,
+      "tax_minor": 0,
+      "total_minor": 84000
+    },
+    {
+      "file": "invoice_08.pdf",
+      "invoice_number": "INV-2026-0008",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-06-29",
+      "subtotal_minor": 79700,
+      "tax_minor": 14346,
+      "total_minor": 94046
+    },
+    {
+      "file": "invoice_09.pdf",
+      "invoice_number": "INV-2026-0009",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-07-03",
+      "subtotal_minor": 168600,
+      "tax_minor": 0,
+      "total_minor": 168600
+    },
+    {
+      "file": "invoice_10.pdf",
+      "invoice_number": "INV-2026-0010",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-07-07",
+      "subtotal_minor": 625,
+      "tax_minor": 31,
+      "total_minor": 656
+    },
+    {
+      "file": "invoice_11.pdf",
+      "invoice_number": "INV-2026-0011",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-07-11",
+      "subtotal_minor": 129150,
+      "tax_minor": 23247,
+      "total_minor": 152397
+    },
+    {
+      "file": "invoice_12.pdf",
+      "invoice_number": "INV-2026-0012",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-07-15",
+      "subtotal_minor": 135510,
+      "tax_minor": 0,
+      "total_minor": 135510
+    },
+    {
+      "file": "invoice_13.pdf",
+      "invoice_number": "INV-2026-0013",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-07-19",
+      "subtotal_minor": 48000,
+      "tax_minor": 8640,
+      "total_minor": 56640
+    },
+    {
+      "file": "invoice_14.pdf",
+      "invoice_number": "INV-2026-0014",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-07-23",
+      "subtotal_minor": 49790,
+      "tax_minor": 0,
+      "total_minor": 49790
+    },
+    {
+      "file": "invoice_15.pdf",
+      "invoice_number": "INV-2026-0015",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-07-27",
+      "subtotal_minor": 181425,
+      "tax_minor": 9071,
+      "total_minor": 190496
+    },
+    {
+      "file": "invoice_16.pdf",
+      "invoice_number": "INV-2026-0016",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-07-31",
+      "subtotal_minor": 4375,
+      "tax_minor": 788,
+      "total_minor": 5163
+    },
+    {
+      "file": "invoice_17.pdf",
+      "invoice_number": "INV-2026-0017",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-08-04",
+      "subtotal_minor": 111600,
+      "tax_minor": 0,
+      "total_minor": 111600
+    },
+    {
+      "file": "invoice_18.pdf",
+      "invoice_number": "INV-2026-0018",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-08-08",
+      "subtotal_minor": 85905,
+      "tax_minor": 15463,
+      "total_minor": 101368
+    },
+    {
+      "file": "invoice_19.pdf",
+      "invoice_number": "INV-2026-0019",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-08-12",
+      "subtotal_minor": 12000,
+      "tax_minor": 0,
+      "total_minor": 12000
+    },
+    {
+      "file": "invoice_20.pdf",
+      "invoice_number": "INV-2026-0020",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-08-16",
+      "subtotal_minor": 20060,
+      "tax_minor": 1003,
+      "total_minor": 21063
+    },
+    {
+      "file": "invoice_21.pdf",
+      "invoice_number": "INV-2026-0021",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-08-20",
+      "subtotal_minor": 110325,
+      "tax_minor": 19859,
+      "total_minor": 130184
+    },
+    {
+      "file": "invoice_22.pdf",
+      "invoice_number": "INV-2026-0022",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-08-24",
+      "subtotal_minor": 2500,
+      "tax_minor": 0,
+      "total_minor": 2500
+    },
+    {
+      "file": "invoice_23.pdf",
+      "invoice_number": "INV-2026-0023",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-08-28",
+      "subtotal_minor": 52875,
+      "tax_minor": 9518,
+      "total_minor": 62393
+    },
+    {
+      "file": "invoice_24.pdf",
+      "invoice_number": "INV-2026-0024",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-09-01",
+      "subtotal_minor": 77295,
+      "tax_minor": 0,
+      "total_minor": 77295
+    },
+    {
+      "file": "invoice_25.pdf",
+      "invoice_number": "INV-2026-0025",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-09-05",
+      "subtotal_minor": 84000,
+      "tax_minor": 4200,
+      "total_minor": 88200
+    },
+    {
+      "file": "invoice_26.pdf",
+      "invoice_number": "INV-2026-0026",
+      "vendor": "NORTHWIND CLOUD LTD",
+      "issued": "2026-09-09",
+      "subtotal_minor": 79700,
+      "tax_minor": 14346,
+      "total_minor": 94046
+    },
+    {
+      "file": "invoice_27.pdf",
+      "invoice_number": "INV-2026-0027",
+      "vendor": "BLUE HARBOR STATIONERY",
+      "issued": "2026-09-13",
+      "subtotal_minor": 168600,
+      "tax_minor": 0,
+      "total_minor": 168600
+    },
+    {
+      "file": "invoice_28.pdf",
+      "invoice_number": "INV-2026-0028",
+      "vendor": "PINE & OAK CONSULTING",
+      "issued": "2026-09-17",
+      "subtotal_minor": 625,
+      "tax_minor": 113,
+      "total_minor": 738
+    },
+    {
+      "file": "invoice_29.pdf",
+      "invoice_number": "INV-2026-0029",
+      "vendor": "HELIX DATA SYSTEMS",
+      "issued": "2026-09-21",
+      "subtotal_minor": 129150,
+      "tax_minor": 0,
+      "total_minor": 129150
+    },
+    {
+      "file": "invoice_30.pdf",
+      "invoice_number": "INV-2026-0030",
+      "vendor": "MERIDIAN LOGISTICS CO",
+      "issued": "2026-09-25",
+      "subtotal_minor": 135510,
+      "tax_minor": 6776,
+      "total_minor": 142286
+    }
+  ],
+  "invoice_total_sum_minor": 2392352,
+  "bank_debit_count": 24,
+  "bank_debit_sum_minor": 1763028,
+  "matched_invoices": [
+    "INV-2026-0001",
+    "INV-2026-0002",
+    "INV-2026-0003",
+    "INV-2026-0004",
+    "INV-2026-0005",
+    "INV-2026-0006",
+    "INV-2026-0007",
+    "INV-2026-0008",
+    "INV-2026-0009",
+    "INV-2026-0010",
+    "INV-2026-0011",
+    "INV-2026-0012",
+    "INV-2026-0013",
+    "INV-2026-0014",
+    "INV-2026-0015",
+    "INV-2026-0016",
+    "INV-2026-0017",
+    "INV-2026-0018",
+    "INV-2026-0019",
+    "INV-2026-0020"
+  ],
+  "potential_duplicate_payment_invoice": "INV-2026-0021",
+  "partial_payment_invoice": "INV-2026-0022",
+  "unpaid_invoices": [
+    "INV-2026-0023",
+    "INV-2026-0024",
+    "INV-2026-0025",
+    "INV-2026-0026",
+    "INV-2026-0027",
+    "INV-2026-0028",
+    "INV-2026-0029",
+    "INV-2026-0030"
+  ],
+  "unmatched_bank_debit": {
+    "description": "UNKNOWN CARD MERCHANT",
+    "amount_minor": 4200
+  },
+  "corrupted_file_must_fail": "corrupted_invoice.pdf",
+  "scan_file_for_ocr": "scan_receipt.png"
+}
