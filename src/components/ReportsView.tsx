@@ -7,10 +7,11 @@ import {
   TrendingUp,
   CheckCircle2,
 } from "lucide-react";
-import { CurrencyCode, FinancialSummary, ExportResult, formatMinorCurrency } from "../lib/types";
+import { CurrencyCode, FinancialSummary, InvoiceCurrencySummary, ExportResult, formatMinorCurrency } from "../lib/types";
 
 interface ReportsViewProps {
   financialSummary: FinancialSummary | null;
+  invoiceSummary: InvoiceCurrencySummary[];
   reportExports: ExportResult[];
   isExporting: boolean;
   exportFeedback: string | null;
@@ -19,6 +20,7 @@ interface ReportsViewProps {
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   financialSummary,
+  invoiceSummary,
   reportExports,
   isExporting,
   exportFeedback,
@@ -62,6 +64,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="export-feedback-banner">
           <CheckCircle2 size={14} className="icon-green" />
           <span className="font-mono text-xs">{exportFeedback}</span>
+        </div>
+      )}
+
+      {invoiceSummary.length > 0 && (
+        <div className="invoice-summary-block">
+          <h4 className="invoice-summary-title">Invoices imported</h4>
+          <div className="reports-metric-grid">
+            {invoiceSummary.map((row) => (
+              <div className="metric-tile" key={row.currency}>
+                <span className="metric-label">{row.currency} invoices</span>
+                <div className="metric-value font-mono">
+                  {formatMinorCurrency(row.totalMinor, row.currency as CurrencyCode)}
+                </div>
+                <span className="metric-subtext">
+                  {row.invoiceCount} {row.invoiceCount === 1 ? "invoice" : "invoices"}
+                  {row.unmatchedCount > 0
+                    ? `, ${row.unmatchedCount} without a matching payment (${formatMinorCurrency(row.unmatchedTotalMinor, row.currency as CurrencyCode)})`
+                    : ", all matched to a payment"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {financialSummary && financialSummary.totalIncomeMinor === 0 && financialSummary.totalExpenseMinor === 0 && (
+        <div className="reports-empty-note">
+          No bank transactions in {financialSummary.currency} yet. Money in, money out and the monthly chart come from bank statements; import one on the Documents screen.
         </div>
       )}
 
@@ -243,15 +273,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="reports-table-card">
         <div className="table-card-head">
           <span className="table-head-title">Exported reports</span>
-          <span className="table-head-subtitle">SHA-256 immutable snapshot fingerprints</span>
+          <span className="table-head-subtitle">Saved on this computer</span>
         </div>
 
         {reportExports.length === 0 ? (
           <div className="empty-panel-state">
-            <p>No reports exported yet.</p>
+            <p>No exports yet</p>
             <span>
-              Click &ldquo;Export Source-Traceable PDF&rdquo; above to generate your first audit
-              package.
+              Use Export PDF or Export CSV above. Files are saved on this computer.
             </span>
           </div>
         ) : (

@@ -15,6 +15,8 @@ interface DocumentsViewProps {
   selectedDocumentId: string | null;
   onSelectDocument: (docId: string) => void;
   onIngestFile: (filePath: string) => Promise<void>;
+  onPickFiles: () => void;
+  isDraggingFiles: boolean;
   isImporting: boolean;
   importMessage: { text: string; type: "success" | "error" | "info" } | null;
 }
@@ -24,6 +26,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   selectedDocumentId,
   onSelectDocument,
   onIngestFile,
+  onPickFiles,
+  isDraggingFiles,
   isImporting,
   importMessage,
 }) => {
@@ -48,33 +52,33 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     <div className="documents-workspace">
       {/* Ingestion Command Bar */}
       <div className="ingest-command-card">
-        <div className="ingest-card-head">
-          <div className="ingest-title-wrap">
-            <UploadCloud size={16} className="icon-cream" />
-            <h3>Import documents</h3>
+        <div className={`drop-zone ${isDraggingFiles ? "active" : ""}`}>
+          <UploadCloud size={24} className="drop-zone-icon" />
+          <div className="drop-zone-text">
+            <strong>Drop invoices, receipts or bank statements here</strong>
+            <span>PDF, PNG, JPG or CSV. Up to 50 MB and 50 pages each. You can drop several at once.</span>
           </div>
-          <span className="ingest-guidance">
-            PDF, scanned image (PNG or JPG) or bank statement CSV. Up to 50 MB and 50 pages.
-          </span>
+          <button type="button" className="btn-primary-medium" onClick={onPickFiles} disabled={isImporting}>
+            {isImporting ? "Importing..." : "Browse files"}
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="ingest-input-row">
-          <input
-            type="text"
-            className="input-text flex-grow"
-            placeholder="Enter the absolute path to a CSV, PDF, PNG or JPG file..."
-            value={inputPath}
-            onChange={(e) => setInputPath(e.target.value)}
-            disabled={isImporting}
-          />
-          <button
-            type="submit"
-            className="btn-primary-medium"
-            disabled={isImporting || !inputPath.trim()}
-          >
-            {isImporting ? "Processing OCR..." : "Ingest Document"}
-          </button>
-        </form>
+        <details className="path-import">
+          <summary>Import by file path</summary>
+          <form onSubmit={handleSubmit} className="ingest-input-row">
+            <input
+              type="text"
+              className="input-text flex-grow"
+              placeholder="C:\path\to\file.pdf"
+              value={inputPath}
+              onChange={(e) => setInputPath(e.target.value)}
+              disabled={isImporting}
+            />
+            <button type="submit" className="btn-secondary-medium" disabled={isImporting || !inputPath.trim()}>
+              Ingest Document
+            </button>
+          </form>
+        </details>
 
         {importMessage && (
           <div className={`ingest-status-banner ${importMessage.type}`}>
@@ -126,8 +130,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         {filteredDocs.length === 0 ? (
           <div className="empty-table-state">
             <FileText size={32} className="icon-muted" />
-            <p>No documents found matching the filter.</p>
-            <span>Import a PDF invoice or bank statement using the bar above.</span>
+            <p>{documents.length === 0 ? "No documents yet" : "No documents match this filter"}</p>
+            <span>
+              {documents.length === 0
+                ? "Drop files above or choose Browse files to import your first invoice, receipt or bank statement."
+                : "Choose All to see every document."}
+            </span>
           </div>
         ) : (
           <div className="table-scroll-wrap">

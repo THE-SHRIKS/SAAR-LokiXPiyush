@@ -1,8 +1,10 @@
 import React from "react";
-import { Search, RefreshCw, PanelRightClose, PanelRightOpen, Cpu, Sun, Moon } from "lucide-react";
+import { Search, RefreshCw, PanelRightClose, PanelRightOpen, PanelLeftOpen, Cpu, Sun, Moon } from "lucide-react";
 import { SearchResult, WorkspaceInfo } from "../lib/types";
 
 interface HeaderBarProps {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
   workspace: WorkspaceInfo | null;
   activeTabTitle: string;
   searchQuery: string;
@@ -20,6 +22,8 @@ interface HeaderBarProps {
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   workspace: _workspace,
+  sidebarCollapsed,
+  onToggleSidebar,
   activeTabTitle,
   searchQuery,
   onSearchChange,
@@ -37,6 +41,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     <header className="claude-header-bar">
       {/* Left: Active View / Thread Title */}
       <div className="header-left-col">
+        {sidebarCollapsed && (
+          <button className="header-icon-btn" onClick={onToggleSidebar} title="Show sidebar (Ctrl+B)" aria-label="Show sidebar">
+            <PanelLeftOpen size={16} />
+          </button>
+        )}
         <h2 className="header-active-title">{activeTabTitle}</h2>
       </div>
 

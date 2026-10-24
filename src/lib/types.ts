@@ -215,6 +215,14 @@ export interface CurrencyExclusion {
   grossMinor: number;
 }
 
+export interface InvoiceCurrencySummary {
+  currency: string;
+  invoiceCount: number;
+  totalMinor: number;
+  unmatchedCount: number;
+  unmatchedTotalMinor: number;
+}
+
 export interface FinancialSummary {
   totalIncomeMinor: number;
   totalExpenseMinor: number;

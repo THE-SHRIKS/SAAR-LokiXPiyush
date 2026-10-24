@@ -12,12 +12,14 @@ import {
   Lock,
   Sun,
   Moon,
+  PanelLeftClose,
 } from "lucide-react";
 import { ChatThread, WorkspaceInfo } from "../lib/types";
 
 export type WorkspaceTab = "chat" | "documents" | "review" | "reports" | "security";
 
 interface SidebarProps {
+  onCollapse: () => void;
   workspace: WorkspaceInfo | null;
   activeTab: WorkspaceTab;
   onSelectTab: (tab: WorkspaceTab) => void;
@@ -38,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   workspace,
   activeTab,
   onSelectTab,
+  onCollapse,
   threads,
   activeThreadId,
   onSelectThread,
@@ -63,6 +66,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="brand-title">SAAR</span>
             <span className="brand-subtitle">Local financial workspace</span>
           </div>
+          <button className="sidebar-collapse-btn" onClick={onCollapse} title="Hide sidebar (Ctrl+B)" aria-label="Hide sidebar">
+            <PanelLeftClose size={16} />
+          </button>
         </div>
         <div className="airgap-badge">
           <span className="airgap-dot" />

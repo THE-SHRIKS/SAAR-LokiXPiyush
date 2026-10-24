@@ -18,6 +18,7 @@ import {
   ProposedLink,
   FinancialAnomaly,
   FinancialSummary,
+  InvoiceCurrencySummary,
   ReconciliationResult,
   GroundedChatResponse,
   CategoryProposal,
@@ -118,6 +119,10 @@ export class SaarApi {
 
   static listAuditLog(): Promise<AuditEventRecord[]> {
     return call<AuditEventRecord[]>("list_audit_log");
+  }
+
+  static getInvoiceSummary(): Promise<InvoiceCurrencySummary[]> {
+    return call<InvoiceCurrencySummary[]>("get_invoice_summary");
   }
 
   static getFinancialSummary(currency: string): Promise<FinancialSummary> {

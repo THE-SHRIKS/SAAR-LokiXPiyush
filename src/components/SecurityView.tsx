@@ -1,3 +1,4 @@
+import { pickBackupArchive } from "../lib/files";
 import React from "react";
 import {
   ShieldCheck,
@@ -183,14 +184,27 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
           <form onSubmit={onRestoreBackup} className="backup-subcard">
             <h5>Restore From .saar Archive</h5>
             <p className="subcard-desc">Decrypt archive into local data directories.</p>
-            <input
-              type="text"
-              className="input-text"
-              placeholder="Absolute path to .saar archive..."
-              value={restoreArchivePath}
-              onChange={(e) => setRestoreArchivePath(e.target.value)}
-              disabled={isRestoreLoading}
-            />
+            <div className="path-pick-row">
+              <input
+                type="text"
+                className="input-text"
+                placeholder="No backup chosen"
+                value={restoreArchivePath}
+                onChange={(e) => setRestoreArchivePath(e.target.value)}
+                disabled={isRestoreLoading}
+              />
+              <button
+                type="button"
+                className="btn-secondary-medium"
+                disabled={isRestoreLoading}
+                onClick={async () => {
+                  const chosen = await pickBackupArchive().catch(() => null);
+                  if (chosen) setRestoreArchivePath(chosen);
+                }}
+              >
+                Browse
+              </button>
+            </div>
             <input
               type="password"
               className="input-text"

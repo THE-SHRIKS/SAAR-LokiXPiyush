@@ -862,6 +862,21 @@ pub fn list_audit_log(state: State<AppState>) -> Result<Vec<AuditEventRecord>, S
 }
 
 #[tauri::command]
+pub fn get_invoice_summary(
+    state: State<AppState>,
+) -> Result<Vec<crate::finance::aggregates::InvoiceCurrencySummary>, String> {
+    let ws_id = state
+        .active_workspace_id
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No workspace is unlocked.")?;
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or("Database uninitialized.")?;
+    crate::finance::aggregates::invoice_summary(db.conn_ref(), &ws_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_financial_summary(
     state: State<AppState>,
     currency: String,

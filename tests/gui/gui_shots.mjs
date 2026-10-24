@@ -28,8 +28,9 @@ const app = new AppDriver({
 
 async function ingest(file) {
   await app.waitFor(`(() => { const i = document.querySelector("input.input-text.flex-grow"); return !!i && !i.disabled; })()`, { timeout: 120000 });
+  await app.eval(`document.querySelector("details.path-import")?.setAttribute("open", "")`);
   await app.type(q.sel("input.input-text.flex-grow"), file);
-  await app.click(q.byText("button.btn-primary-medium", "Ingest Document"), "ingest");
+  await app.click(q.byText("button.btn-secondary-medium", "Ingest Document"), "ingest");
   const name = path.basename(file);
   await app.waitFor(`(() => { const b = document.querySelector(".ingest-status-banner"); const t = b ? b.innerText : ""; return (t.includes(${JSON.stringify(name)}) && !t.startsWith("Ingesting")) || t.startsWith("Ingestion failed"); })()`, { timeout: 120000 });
 }
@@ -52,6 +53,11 @@ try {
   await app.click(q.sel(".unlock-submit-btn"), "create");
   await app.waitFor(`document.body.innerText.includes("Start new chat")`, { timeout: 60000 });
 
+  for (const [name, label] of tabs.filter(([, l]) => l)) {
+    await app.click(q.byText("button.tool-nav-btn", label), name);
+    await sleep(500);
+    await app.screenshot(path.join(out, `empty_${name}.png`));
+  }
   await app.click(q.byText("button.tool-nav-btn", "Documents"), "documents");
   const files = [];
   for (const sub of ["invoices", "receipts"]) {
@@ -70,6 +76,9 @@ try {
   await app.click(q.sel(".composer-send-btn"), "send");
   await app.waitFor(`document.querySelectorAll(".chat-message-row.assistant .assistant-message-entry:not(.loading)").length > 0`, { timeout: 120000 });
 
+  await app.type(q.sel(".composer-textarea"), "hey");
+  await app.click(q.sel(".composer-send-btn"), "send");
+  await app.waitFor(`document.querySelectorAll(".chat-message-row.assistant .assistant-message-entry:not(.loading)").length > 1`, { timeout: 120000 });
   await sleep(500);
   await app.screenshot(path.join(out, "conversation.png"));
 

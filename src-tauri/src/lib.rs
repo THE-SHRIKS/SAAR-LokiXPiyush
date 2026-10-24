@@ -42,6 +42,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::get_system_status,
@@ -61,6 +62,7 @@ pub fn run() {
             commands::correct_transaction,
             commands::list_audit_log,
             commands::get_financial_summary,
+            commands::get_invoice_summary,
             commands::chat_grounded,
             commands::classify_transaction,
             commands::approve_category,

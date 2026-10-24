@@ -135,7 +135,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             disabled={isReconciling}
           >
             <RefreshCw size={13} className={isReconciling ? "spin" : ""} />
-            <span>{isReconciling ? "Executing Matchers..." : "Run Reconciliation"}</span>
+            <span>{isReconciling ? "Matching..." : "Run Reconciliation"}</span>
           </button>
         )}
       </div>
@@ -185,9 +185,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
             {reconciliationLinks.length === 0 ? (
               <div className="empty-panel-state">
-                <p>No reconciliation proposals in inbox.</p>
+                <p>No matches to review</p>
                 <span>
-                  Click &ldquo;Run Reconciliation&rdquo; above to match invoices with bank records.
+                  Run reconciliation to match invoices with bank rows.
                 </span>
               </div>
             ) : (

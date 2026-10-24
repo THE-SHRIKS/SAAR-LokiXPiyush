@@ -64,10 +64,16 @@ pub fn verified_response(answer: &VerifiedAnswer) -> GroundedChatResponse {
 pub fn model_response(packet: &GroundedFactPacket, raw_answer: &str) -> GroundedChatResponse {
     let mut response = GroundingEngine::validate_and_parse_response(packet, raw_answer);
     response.grounded = false;
+    let number_failed = response.verification_note.starts_with("Number check failed");
     response.verification_note = format!(
-        "Not verified: this text was written by the local language model, and SAAR did not compute its figures. Check them against your records. ({}){}",
-        response.verification_note,
-        packet.omitted_note.as_ref().map(|n| format!(" {}", n)).unwrap_or_default()
+        "Not verified. Written by the local model, not calculated by SAAR. Check any figures against your records.{}{}",
+        if number_failed { " A figure in this text does not match your records." } else { "" },
+        // The trimmed-records note only matters when the text refers to records.
+        if response.citations.is_empty() {
+            String::new()
+        } else {
+            packet.omitted_note.as_ref().map(|n| format!(" {}", n)).unwrap_or_default()
+        }
     );
     response
 }

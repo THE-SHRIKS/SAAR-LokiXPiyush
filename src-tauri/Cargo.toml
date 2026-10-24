@@ -38,6 +38,7 @@ base64 = "0.23"
 anyhow = "1.0"
 hex = "0.4"
 regex = "1.13"
+tauri-plugin-dialog = "2"
 
 [profile.dev]
 incremental = true

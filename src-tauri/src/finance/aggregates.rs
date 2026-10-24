@@ -257,3 +257,88 @@ mod excluded_currency_tests {
         assert!(summary.excluded_currencies.is_empty());
     }
 }
+
+/// Invoices (bills) imported into a workspace, per currency. Bank totals come from transactions
+/// only, so this is what shows that imported bills were read even before a bank statement exists.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InvoiceCurrencySummary {
+    pub currency: String,
+    pub invoice_count: i64,
+    pub total_minor: i64,
+    /// Invoices with no proposed or approved bank payment link.
+    pub unmatched_count: i64,
+    pub unmatched_total_minor: i64,
+}
+
+pub fn invoice_summary(
+    conn: &rusqlite::Connection,
+    workspace_id: &str,
+) -> rusqlite::Result<Vec<InvoiceCurrencySummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT i.currency,
+                COUNT(*),
+                COALESCE(SUM(i.total_minor), 0),
+                COALESCE(SUM(CASE WHEN l.invoice_id IS NULL THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN l.invoice_id IS NULL THEN i.total_minor ELSE 0 END), 0)
+         FROM invoices i
+         JOIN documents d ON d.id = i.document_id
+         LEFT JOIN (SELECT DISTINCT invoice_id FROM invoice_payment_links
+                    WHERE workspace_id = ?1 AND status IN ('PROPOSED', 'APPROVED')) l
+                ON l.invoice_id = i.id
+         WHERE d.workspace_id = ?1
+         GROUP BY i.currency
+         ORDER BY i.currency",
+    )?;
+    let rows = stmt.query_map([workspace_id], |r| {
+        Ok(InvoiceCurrencySummary {
+            currency: r.get(0)?,
+            invoice_count: r.get(1)?,
+            total_minor: r.get(2)?,
+            unmatched_count: r.get(3)?,
+            unmatched_total_minor: r.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+#[cfg(test)]
+mod invoice_summary_tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn test_invoice_summary_counts_by_currency_and_tracks_unmatched() {
+        let db = Database::open_in_memory().unwrap();
+        db.create_workspace("ws", "WS", "USD", &[1u8; 16], &[2u8; 32]).unwrap();
+        let c = db.conn_ref();
+        for (doc, inv, cur, total) in [("d1", "i1", "USD", 10_000i64), ("d2", "i2", "USD", 2_500), ("d3", "i3", "INR", 700_000)] {
+            c.execute(
+                "INSERT INTO documents (id, workspace_id, file_name, file_size_bytes, sha256, doc_type, status, imported_at)
+                 VALUES (?1, 'ws', ?1, 1, ?1, 'INVOICE', 'READY', '2026-01-01')",
+                [doc],
+            ).unwrap();
+            c.execute(
+                "INSERT INTO invoices (id, document_id, vendor_name, currency, total_minor) VALUES (?1, ?2, 'V', ?3, ?4)",
+                rusqlite::params![inv, doc, cur, total],
+            ).unwrap();
+        }
+        c.execute(
+            "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+             VALUES ('t1', 'ws', '2026-01-02', 'PAY', -10000, 'USD', 'UNREVIEWED')",
+            [],
+        ).unwrap();
+        c.execute(
+            "INSERT INTO invoice_payment_links (id, workspace_id, invoice_id, transaction_id, matched_amount_minor, confidence_score, match_type, explanation, status, created_at)
+             VALUES ('l1', 'ws', 'i1', 't1', 10000, 1.0, 'EXACT', 'x', 'APPROVED', '2026-01-02')",
+            [],
+        ).unwrap();
+        let s = invoice_summary(c, "ws").unwrap();
+        assert_eq!(s.len(), 2);
+        let usd = &s[1];
+        assert_eq!((usd.currency.as_str(), usd.invoice_count, usd.total_minor), ("USD", 2, 12_500));
+        assert_eq!((usd.unmatched_count, usd.unmatched_total_minor), (1, 2_500));
+        let inr = &s[0];
+        assert_eq!((inr.currency.as_str(), inr.invoice_count, inr.unmatched_count), ("INR", 1, 1));
+    }
+}

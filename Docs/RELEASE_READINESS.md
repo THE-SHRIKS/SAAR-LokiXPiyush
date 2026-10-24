@@ -107,3 +107,12 @@ Still open: WebView2 outbound connections (owner decision: firewall or runtime p
 - Interface: neutral graphite and off-white themes with one accent; green, red and amber only mean credit, debit and caution. Plain labels instead of jargon; anomaly codes shown as readable names; citations shown as "Transaction 2cc01800". Claims the app could not back ("Air-Gapped", "0 outbound sockets") were removed; the Security page now states that the WebView2 component's own connections are not controlled by SAAR.
 - Regression after both changes: 115 library tests, p1-p6, migration (3), golden dataset (2), command-layer end-to-end, frontend (7), real-window run (61 checks, 0 failures).
 - Not done: comparison of Qwen3 4B against Qwen3 8B, Phi-4-mini or Gemma 3 on the corpus questions; accuracy of free-form text is unmeasured. Verdict unchanged: NOT READY (installer, offline run, WebView2 traffic).
+
+## Update: import by dialog and drag-and-drop, invoice totals, sidebar
+
+- Importing no longer needs a typed path. Documents has a drop zone and a Browse button (system file dialog, several files at once); files dropped anywhere on the window are imported; the chat attach button opens the same dialog; restore has a Browse button. Typed-path import remains only under "Import by file path".
+- Reports now shows an "Invoices imported" block per currency (count, total, invoices with no matching payment), because Money in / Money out come from bank statements only. With no bank rows the screen says so instead of showing unexplained zeros. Data screens reload when opened, and the refresh no longer fails as a whole when one query fails.
+- Model text: citation tags that name no record (`[inv:<none>]`) are removed from the text and evidence list; the note under model text is a plain muted line, not an amber alert; greetings get a short reply.
+- Sidebar can be hidden and shown (button, Ctrl+B), remembered between runs. Focus rings, empty states, native controls and the drop-zone styling were added for both themes.
+- Verification: 117 library tests, p1-p6, migration, golden, command-layer end-to-end, frontend (7), real-window run with 68 checks and 0 failures including the drop and sidebar checks.
+- Limit: the operating system's drag events cannot be produced from a script, so the window test sends the same events the shell emits through Tauri's event bus; the system file dialog itself was not driven by a test.

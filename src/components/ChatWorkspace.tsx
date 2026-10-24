@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Send, Paperclip, CheckCircle2, AlertCircle } from "lucide-react";
 import { ChatMessage } from "../lib/types";
 
 interface ChatWorkspaceProps {
@@ -9,7 +9,7 @@ interface ChatWorkspaceProps {
   isLoading: boolean;
   onSelectCitation: (citation: string) => void;
   onNavigateToTab: (tab: "documents" | "review" | "reports") => void;
-  onIngestFile: (filePath: string) => Promise<void>;
+  onPickFiles: () => void;
   errorMessage: string | null;
   suggestions: string[];
 }
@@ -28,13 +28,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   isLoading,
   onSelectCitation,
   onNavigateToTab: _onNavigateToTab,
-  onIngestFile,
+  onPickFiles,
   errorMessage,
   suggestions,
 }) => {
   const [inputText, setInputText] = useState("");
-  const [showAttachModal, setShowAttachModal] = useState(false);
-  const [attachPath, setAttachPath] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -57,13 +55,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     }
   };
 
-  const handleAttachSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!attachPath.trim()) return;
-    onIngestFile(attachPath.trim());
-    setAttachPath("");
-    setShowAttachModal(false);
-  };
+
 
   const handleChipClick = (suggestion: string) => {
     onSendMessage(suggestion);
@@ -123,8 +115,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button
                   type="button"
                   className="composer-attach-btn"
-                  onClick={() => setShowAttachModal(true)}
-                  title="Ingest invoice, receipt, or bank statement"
+                  onClick={onPickFiles}
+                  title="Import invoices, receipts or bank statements"
                 >
                   <Paperclip size={16} />
                 </button>
@@ -268,8 +260,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button
                   type="button"
                   className="composer-attach-btn"
-                  onClick={() => setShowAttachModal(true)}
-                  title="Ingest invoice, receipt, or bank statement"
+                  onClick={onPickFiles}
+                  title="Import invoices, receipts or bank statements"
                 >
                   <Paperclip size={16} />
                 </button>
@@ -297,51 +289,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         </div>
       )}
 
-      {/* Ingest File Modal */}
-      {showAttachModal && (
-        <div className="modal-backdrop" onClick={() => setShowAttachModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Ingest Document into Workspace</h3>
-              <button
-                className="modal-close-btn"
-                onClick={() => setShowAttachModal(false)}
-              >
-                <X size={15} />
-              </button>
-            </div>
-            <form onSubmit={handleAttachSubmit} className="modal-form">
-              <p className="modal-desc">
-                Provide an absolute path to a bank statement (CSV), invoice (PDF), or scanned receipt (PNG/JPG).
-              </p>
-              <input
-                type="text"
-                className="modal-input"
-                placeholder="Absolute path to a CSV, PDF, PNG or JPG file"
-                value={attachPath}
-                onChange={(e) => setAttachPath(e.target.value)}
-                autoFocus
-              />
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowAttachModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={!attachPath.trim()}
-                >
-                  Ingest & Encrypt
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
