@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SourceButton } from "@/components/site-blocks";
+import { pageHead } from "@/lib/seo";
 
 const facts = [
   { value: "0", label: "mismatches against a ground-truth ledger in the synthetic corpus test" },
@@ -9,17 +10,13 @@ const facts = [
 ] as const;
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "SAAR | Financial clarity with a source" },
-      {
-        name: "description",
-        content:
-          "SAAR is a Windows desktop workspace for financial documents, reconciliation, exact calculations, and source-linked answers.",
-      },
-      { property: "og:title", content: "SAAR | Financial clarity with a source" },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "SAAR | Financial clarity with a source",
+      description:
+        "SAAR is a Windows desktop workspace for financial documents, reconciliation, exact calculations, and source-linked answers.",
+      path: "/",
+    }),
   component: Home,
 });
 
@@ -100,11 +97,11 @@ function Home() {
               and calculation behind it.
             </p>
             <div className="s-home-actions">
-              <Link className="s-button" to="/product">
-                Understand the product <span aria-hidden="true">→</span>
+              <Link className="s-button" to="/download">
+                Download for Windows <span aria-hidden="true">↓</span>
               </Link>
-              <Link className="s-text-link" to="/how-it-works">
-                Follow the workflow
+              <Link className="s-text-link" to="/product">
+                Understand the product →
               </Link>
             </div>
           </div>

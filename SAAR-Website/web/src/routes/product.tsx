@@ -6,18 +6,16 @@ import {
   ReconciliationSpecimen,
 } from "@/components/product-demos";
 import chat from "@/assets/light_02_chat_seed_report.asset.json";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/product")({
-  head: () => ({
-    meta: [
-      { title: "Product | SAAR" },
-      {
-        name: "description",
-        content:
-          "Explore SAAR's document workspace, reconciliation review, verified answers, reports, and local storage.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "Product | SAAR",
+      description:
+        "Explore SAAR's document workspace, reconciliation review, verified answers, reports, and local storage.",
+      path: "/product",
+    }),
   component: Product,
 });
 

@@ -1,17 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { REPO_URL } from "@/data/site";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/security")({
-  head: () => ({
-    meta: [
-      { title: "Security | SAAR" },
-      {
-        name: "description",
-        content:
-          "How SAAR protects financial records: per-workspace encryption, local AI, a network-blocked webview, and the known limits that remain open.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "Security | SAAR",
+      description:
+        "How SAAR protects financial records: per-workspace encryption, local AI, a network-blocked webview, and the known limits that remain open.",
+      path: "/security",
+    }),
   component: Security,
 });
 

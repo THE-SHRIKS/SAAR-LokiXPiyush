@@ -1,18 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SourceButton } from "@/components/site-blocks";
 import { SystemMap } from "@/components/product-demos";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/how-it-works")({
-  head: () => ({
-    meta: [
-      { title: "How it works | SAAR" },
-      {
-        name: "description",
-        content:
-          "Follow a financial record through SAAR's workspace, import, review, calculation, reporting, and backup.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "How it works | SAAR",
+      description:
+        "Follow a financial record through SAAR's workspace, import, review, calculation, reporting, and backup.",
+      path: "/how-it-works",
+    }),
   component: HowItWorks,
 });
 

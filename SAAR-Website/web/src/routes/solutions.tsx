@@ -1,17 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SourceButton } from "@/components/site-blocks";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/solutions")({
-  head: () => ({
-    meta: [
-      { title: "Use cases | SAAR" },
-      {
-        name: "description",
-        content:
-          "See where SAAR helps with financial document review, reconciliation, evidence-linked answers, and scoped reports.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "Use cases | SAAR",
+      description:
+        "See where SAAR helps with financial document review, reconciliation, evidence-linked answers, and scoped reports.",
+      path: "/solutions",
+    }),
   component: Solutions,
 });
 

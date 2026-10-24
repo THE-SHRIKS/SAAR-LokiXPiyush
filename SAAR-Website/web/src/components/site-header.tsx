@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { NAV, REPO_URL } from "@/data/site";
+import { NAV } from "@/data/site";
 import { Logo } from "@/components/logo";
 
 export function SiteHeader() {
@@ -26,12 +26,12 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <a className="s-button" href={REPO_URL} target="_blank" rel="noreferrer">
-          View source{" "}
+        <Link className="s-button" to="/download">
+          Download for Windows{" "}
           <span className="s-arrow" aria-hidden="true">
-            ↗
+            ↓
           </span>
-        </a>
+        </Link>
         <button
           className="s-menu"
           aria-expanded={open}
@@ -49,9 +49,9 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          <a className="s-mobile-cta" href={REPO_URL} target="_blank" rel="noreferrer">
-            View source ↗
-          </a>
+          <Link className="s-mobile-cta" to="/download">
+            Download for Windows ↓
+          </Link>
         </nav>
       )}
     </header>

@@ -1,17 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ORG_URL, REPO_URL } from "@/data/site";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
-  head: () => ({
-    meta: [
-      { title: "About | SAAR" },
-      {
-        name: "description",
-        content:
-          "Why SAAR exists, the principles behind it, what the logo means, the stack it is built on, and the team at THE SHRIKS.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "About | SAAR",
+      description:
+        "Why SAAR exists, the principles behind it, what the logo means, the stack it is built on, and the team at THE SHRIKS.",
+      path: "/about",
+    }),
   component: About,
 });
 

@@ -1,17 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { REPO_URL } from "@/data/site";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/get-started")({
-  head: () => ({
-    meta: [
-      { title: "Get started | SAAR" },
-      {
-        name: "description",
-        content:
-          "Build SAAR from source on Windows: prerequisites, local model files, the development run, and the checks to run before you trust a result.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "Get started | SAAR",
+      description:
+        "Build SAAR from source on Windows: prerequisites, local model files, the development run, and the checks to run before you trust a result.",
+      path: "/get-started",
+    }),
   component: GetStarted,
 });
 

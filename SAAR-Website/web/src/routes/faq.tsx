@@ -1,19 +1,55 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { REPO_ISSUES_URL } from "@/data/site";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/faq")({
   head: () => ({
-    meta: [
-      { title: "FAQ | SAAR" },
+    ...pageHead({
+      title: "FAQ | SAAR",
+      description:
+        "Answers about SAAR's data handling, supported files, verified figures, storage location, hardware, licensing, and current readiness.",
+      path: "/faq",
+    }),
+    scripts: [
       {
-        name: "description",
-        content:
-          "Answers about SAAR's data handling, supported files, verified figures, storage location, hardware, licensing, and current readiness.",
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqEntries.map((entry) => ({
+            "@type": "Question",
+            name: entry.q,
+            acceptedAnswer: { "@type": "Answer", text: entry.a },
+          })),
+        }),
       },
     ],
   }),
   component: Faq,
 });
+
+const faqEntries = [
+  {
+    q: "What is SAAR?",
+    a: "A Windows desktop workspace for financial documents. It imports invoices, receipts, and bank statement CSVs, extracts their fields, proposes matches between records, and calculates totals from the stored records with exact arithmetic.",
+  },
+  {
+    q: "Which files can I import?",
+    a: "Digital PDFs with a text layer, bank statement CSVs, and image-based documents such as scanned receipts. Scanned images are read by a local OCR worker. Extracted fields keep a link to the source document so you can check them.",
+  },
+  {
+    q: "Does the AI calculate my totals?",
+    a: "No. A local model helps interpret a question and writes the explanation. Totals and other verified figures come from defined operations in the Rust core. Answers distinguish computed figures from generated text.",
+  },
+  {
+    q: "Is my data sent anywhere?",
+    a: "The workflow is designed to keep records on your machine. The webview's Content Security Policy blocks outbound connections, and the AI and OCR runtimes run locally. The egress audit in the repository documents how this was tested.",
+  },
+  {
+    q: "Can I use SAAR with real financial records now?",
+    a: "Not yet as a finished tool. The release record is marked not ready, and the installed application has not been verified end to end. Use synthetic or copied test records until the open items on the security page are closed.",
+  },
+] as const;
 
 const groups = [
   {

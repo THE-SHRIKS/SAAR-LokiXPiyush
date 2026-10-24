@@ -455,6 +455,64 @@
   margin-top: 36px;
 }
 
+/* Download */
+.s-download-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 56px;
+  align-items: start;
+}
+.s-download-card {
+  padding: 40px;
+  border: 1px solid var(--s-rule);
+  background: var(--s-paper);
+}
+.s-download-card h2 {
+  margin: 14px 0 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.s-download-meta {
+  margin: 0 0 28px;
+  color: var(--s-muted);
+}
+.s-download-card .s-fineprint {
+  margin-top: 26px;
+  line-height: 1.7;
+}
+.s-download-card code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+.s-download-notes {
+  display: grid;
+  gap: 34px;
+}
+.s-download-notes ul {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: var(--s-muted);
+  line-height: 1.7;
+}
+.s-download-notes li + li {
+  margin-top: 8px;
+}
+@media (max-width: 950px) {
+  .s-download-layout {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+}
+@media (max-width: 650px) {
+  .s-download-card {
+    padding: 26px 22px;
+  }
+}
+
 /* Responsive */
 @media (max-width: 950px) {
   .s-layer-grid,

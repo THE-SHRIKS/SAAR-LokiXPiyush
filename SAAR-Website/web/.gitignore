@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vercel build output
+.vercel
+
+# Installer binary: host it outside Git (see README, "Deploy to Vercel")
+public/downloads/*.exe

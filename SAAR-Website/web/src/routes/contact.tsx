@@ -1,16 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ORG_URL, REPO_ISSUES_URL, REPO_URL } from "@/data/site";
+import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/contact")({
-  head: () => ({
-    meta: [
-      { title: "Contact | SAAR" },
-      {
-        name: "description",
-        content: "Find SAAR's official repository, issue tracker, and project organization.",
-      },
-    ],
-  }),
+  head: () =>
+    pageHead({
+      title: "Contact | SAAR",
+      description: "Find SAAR's official repository, issue tracker, and project organization.",
+      path: "/contact",
+    }),
   component: Contact,
 });
 
