@@ -1,224 +1,146 @@
-# SAAR 🏛️⚡
+<div align="center">
 
-> **Offline, Air-Gapped, Local-First Financial Intelligence & Deterministic Reconciliation Workspace**  
-> Built for **THE SHRIKS** — Zero Cloud Calls • Zero Telemetry • Exact Minor-Unit Money Math • Real Local AI
+# SAAR
 
-[![Tauri 2](https://img.shields.io/badge/Tauri-v2.0-blue?logo=tauri&logoColor=white)](https://tauri.app/)
-[![Rust](https://img.shields.io/badge/Rust-1.84+-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![React 18](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![SQLite](https://img.shields.io/badge/SQLite-WAL%20%2B%20FTS5-003B57?logo=sqlite&logoColor=white)](https://sqlite.org/)
-[![Argon2id](https://img.shields.io/badge/Cryptography-Argon2id%20%2B%20AES--256--GCM-green)](https://en.wikipedia.org/wiki/Argon2)
-[![Air-Gapped](https://img.shields.io/badge/Security-Air--Gapped%20(connect--src%20'none')-success)](#air-gap--security-boundaries)
-[![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-lightgrey)](LICENSE)
+### Financial clarity, kept on your computer.
 
----
+**An offline desktop workspace for financial documents, exact calculations, reconciliation, and local AI.**
 
-## 🌟 Overview
+[Explore the workflow](#the-workflow) · [Run locally](#run-locally) · [Read the architecture](#how-it-works)
 
-**SAAR** is a high-assurance financial intelligence desktop workstation engineered from the ground up for strict offline operational privacy. It allows founders, operators, and enterprises to manage high-stakes financial operations—invoices, bank statements, receipts, multi-currency ledgers, and transaction reconciliations—without exposing a single byte of sensitive financial data to cloud servers or third-party APIs.
+<br />
 
-### 🛡️ Why SAAR?
+![SAAR desktop workspace showing the local chat interface](Docs/evidence/gui/02_main_shell.png)
 
-* **Total Air-Gap Isolation (`connect-src 'none'`):** Enforced by WebKit/WebView2 CSP, OS supervisor controls, and isolated Linux namespace tests (`unshare -rn`). Zero outgoing network sockets, zero DNS lookups, zero analytics.
-* **Exact Integer Minor-Unit Currency Arithmetic:** Never uses floating-point numbers (`f32`/`f64`) for money. All values are represented as signed 64-bit integers (`i64`) in atomic minor currency units (cents, paise, yen).
-* **Grounded Local LLM Runtimes:** Bundles offline `llama.cpp` CPU execution running quantized **Qwen3-4B** (`Q4_K_M.gguf`, GPU offload with CPU fallback). Enforces strict **GBNF formal grammars** for expense categorization and verified source citations (`[inv:ID]`, `[tx:ID]`) with anti-hallucination verification.
-* **Local OCR & Evidence Inspector:** RapidOCR ONNX models extract tabular data and bounding boxes from digital PDFs, scanned receipts, and invoices with interactive visual overlays.
-* **Deterministic Multi-Pass Reconciliation:** Automated deterministic rule pipelines for exact matches, vendor token matching, and date tolerance windows.
-* **Authenticated Encrypted Archives (`.saar`):** AES-256-GCM authenticated container bundling the encrypted SQLite database and blob store with Argon2id key derivation.
+<sub>SAAR's desktop workspace. Screenshots use synthetic test data.</sub>
+
+</div>
 
 ---
 
-## 🏗️ Architecture
+## One workspace. A clear trail from document to decision.
+
+Financial work often starts with a pile of invoices, receipts, and bank rows, then ends with a question: *Where did this number come from?* SAAR brings those records into one local workspace. It extracts and organizes evidence, matches related transactions, calculates totals in integer minor units, and lets you inspect the source behind a result.
+
+| **Bring in the evidence** | **Make sense of the numbers** | **Keep control** |
+| :--- | :--- | :--- |
+| Import PDFs, images, and statement data. Review extracted fields beside their source document. | Reconcile invoices and transactions, inspect anomalies, and ask questions about your records. | Store workspaces locally, review an audit trail, export reports, and create encrypted backups. |
+
+### At a glance
+
+- **Desktop first:** Tauri 2, Rust, React, and TypeScript.
+- **Local intelligence:** Qwen3 4B through `llama.cpp`, with GPU offload and a CPU fallback when the runtime is available.
+- **Traceable answers:** Verified financial figures are calculated from records; generated prose is identified separately in the interface.
+- **Exact money math:** Financial amounts use signed integer minor units instead of binary floating point.
+- **Private by design:** The desktop webview's Content Security Policy sets `connect-src 'none'`. Workspaces and supporting runtimes remain local.
+
+## The workflow
 
 ```mermaid
-flowchart TD
-    subgraph UI ["Desktop User Interface (React 18 + TS + Tailwind)"]
-        UI_AUTH["🔐 Master Passphrase / Workspace Unlock"]
-        UI_DOCS["📄 Document & Evidence Inspector"]
-        UI_RECON["⚖️ Multi-Pass Reconciliation Inbox"]
-        UI_CHAT["💬 Grounded Local AI Assistant"]
-        UI_REP["📊 SVG Financial Trend Visualizer"]
-        UI_SET["🛡️ Security, Audit & Backups"]
-    end
-
-    subgraph IPC ["Strict Tauri IPC Bridge"]
-        BRIDGE["tauri::invoke() & Typed Contracts"]
-    end
-
-    subgraph CORE ["Rust Native Core (src-tauri)"]
-        KDF["Argon2id Key Derivation\n(64 MiB, 3 Passes)"]
-        BLOB["AES-256-GCM Blob Store\n(SHA-256 Deduplication)"]
-        DB["SQLite 3 (WAL + FTS5)\nForeign Keys + Crash Recovery"]
-        MONEY["Exact Minor-Unit Math\n(i64 Cents / Overflow Proof)"]
-        EXP["PDF 1.4 & RFC 4180\nVector Report Exporter"]
-        BACKUP["Authenticated .saar\nBackup & Restore Engine"]
-    end
-
-    subgraph SIDECARS ["Local Offline Sidecars"]
-        LLM["llama-cli (GPU or CPU)\nQwen3-4B Q4_K_M"]
-        OCR["RapidOCR ONNX Runtime\nDBNet + SVTR Text Extraction"]
-    end
-
-    UI --> BRIDGE --> CORE
-    CORE --> SIDECARS
+flowchart LR
+    A[Import documents and bank rows] --> B[Extract and inspect evidence]
+    B --> C[Reconcile and review matches]
+    C --> D[Ask, report, and export]
+    D --> E[Back up the workspace]
 ```
 
----
+<table>
+  <tr>
+    <td width="50%"><img src="Docs/evidence/gui/04_documents_imported.png" alt="Imported documents in SAAR" /><br /><strong>01 · Organize documents</strong><br />Keep invoices, receipts, and statements in the workspace.</td>
+    <td width="50%"><img src="Docs/evidence/gui/08_evidence_inspector.png" alt="Source document and extracted evidence in SAAR" /><br /><strong>02 · Inspect the source</strong><br />Check extracted values against the original document.</td>
+  </tr>
+  <tr>
+    <td><img src="Docs/evidence/gui/05_reconciliation.png" alt="Reconciliation review in SAAR" /><br /><strong>03 · Review the match</strong><br />Examine proposed links before accepting or rejecting them.</td>
+    <td><img src="Docs/evidence/gui/09_reports.png" alt="Financial reporting in SAAR" /><br /><strong>04 · See the whole picture</strong><br />Read calculated summaries and export source-traceable reports.</td>
+  </tr>
+</table>
 
-## 📂 Project Structure
+## What SAAR can do
 
-```text
-SAAR/
-├── Docs/                           # Architecture decision records & specifications
-│   ├── ACCEPTANCE/                 # Windows & Release acceptance matrix (T-01..T-20)
-│   ├── ADR/                        # 10 formal Architecture Decision Records
-│   ├── AUDIT/                      # Formal offline network egress denial audit
-│   ├── AGENTS.md                   # Operational guidelines for autonomous contributors
-│   ├── RULES.md                    # Immutable architectural & financial constraints
-│   ├── SPECS.md                    # Complete technical and cryptographic specification
-│   ├── TASKS.md                    # 63 tracked implementation tasks (All 100% verified)
-│   ├── TEST_PLAN.md                # Executed verification protocols & measured actuals
-│   └── WINDOWS_BUILD_GUIDE.md      # Step-by-step MSVC native Windows build guide
-├── models/
-│   ├── manifests/                  # Model manifest, licenses, and SHA-256 registries
-│   └── weights/                    # Pinned local model weights (Qwen3-4B GGUF)
-├── scripts/
-│   ├── env.sh                      # Unified Unix build toolchain wrapper
-│   ├── network_egress_audit.sh     # Air-gap network denial audit script
-│   ├── windows_build_all.ps1       # Master native Windows packaging automation
-│   ├── windows_prepare_transfer.sh # Repository transfer packaging script
-│   └── windows_verify_pipeline.ps1 # Offline Windows acceptance verification runner
-├── src/                            # React 18 + TypeScript Frontend
-│   ├── components/                 # UI components and vector SVG widgets
-│   ├── lib/
-│   │   ├── api.ts                  # Typed Tauri IPC command bridge
-│   │   └── types.ts                # TypeScript domain models and currency formatters
-│   ├── App.tsx                     # Main interactive workstation workspace
-│   ├── index.css                   # Tailwind / custom styling
-│   └── main.tsx                    # Application entry point
-├── src-tauri/                       # Rust Native Backend
-│   ├── src/
-│   │   ├── ai/                     # Local LLM, GBNF classifier, FTS5, defenses
-│   │   ├── db/                     # SQLite WAL migrations v1-v4 & audit logging
-│   │   ├── export/                 # Pure-Rust PDF 1.4 vector writer & CSV exporter
-│   │   ├── finance/                # Minor-unit math, matching rules, anomaly engine
-│   │   ├── ingestion/              # PDF/CSV parser, RapidOCR client, normalizer
-│   │   ├── security/               # Argon2id KDF, AES-256-GCM blob store, backups
-│   │   ├── commands.rs             # 25+ exposed Tauri IPC command endpoints
-│   │   └── lib.rs                  # Library entry & application orchestration
-│   ├── tests/                      # Full integration test suites (Phases 1 through 6)
-│   ├── Cargo.toml                  # Rust dependencies
-│   └── tauri.conf.json             # Tauri 2 bundle configuration & CSP
-├── workers/
-│   └── ocr/                        # RapidOCR isolated sidecar worker
-├── RELEASE_MANIFEST.md             # Complete release SBOM and cryptographic hashes
-├── RELEASE_NOTES.md                # Release notes for SAAR v0.1.0
-├── STATUS.md                       # Quality Gates G0–G7 sign-off ledger
-└── package.json                    # Node dependencies & frontend scripts
-```
+**Documents and evidence.** The ingestion pipeline handles digital PDFs, statement CSVs, and image based documents through a local OCR worker. Extracted fields retain provenance so the evidence inspector can show where a value came from.
 
----
+**Reconciliation.** Deterministic rules propose links between financial records. The review flow supports approval, rejection, correction, and an audit history.
 
-## 🚦 Quality Gates & Verification Ledger
+**Reports and questions.** Summaries use exact integer arithmetic and account for currencies separately. The local chat experience distinguishes verified figures computed from stored records from model generated text.
 
-| Gate | Focus Area | Status | Key Evidence |
-| :---: | :--- | :---: | :--- |
-| **G0** | Foundation & Toolchain Profiling | **PASSED** | AVX2 flags verified, pinned Qwen2.5-3B SHA-256 (`8eff4e...`) |
-| **G1** | Native Shell & Storage | **PASSED** | Argon2id KDF (64 MiB), SQLite WAL, AES-256-GCM blob store, zero telemetry |
-| **G2** | Ingestion & Extraction | **PASSED** | Digital PDF + RapidOCR sidecar, SHA-256 deduplication, RFC 4180 CSV parser |
-| **G3** | Financial Core | **PASSED** | Signed 64-bit integer money math, multi-pass matching, duplicate detection |
-| **G4** | Grounded Local AI | **PASSED** | Offline `llama-cli`, Fact Packets, GBNF formal grammar, anti-hallucination guard |
-| **G5** | Editorial Interface | **PASSED** | Evidence inspector, bounding boxes, manual edit audit capture, SVG trend charts |
-| **G6** | Reliability & Backup | **PASSED** | Pure-Rust PDF 1.4 report writer, authenticated `.saar` backup, egress denial audit |
-| **G7** | Native Windows Release | **PASSED** | Offline NSIS/WiX installer configuration, Windows PowerShell build automation |
+**Protection and recovery.** SAAR uses per-workspace SQLCipher databases, Argon2id key derivation, encrypted document storage, and authenticated backup archives. `SAAR_DATA_DIR` can relocate workspace data for portable or isolated runs.
 
----
+## Run locally
 
-## ⚡ Quickstart
+SAAR is a source repository, not a complete binary distribution. Model weights and native sidecars are excluded from Git and must be provided separately for AI and OCR features.
 
 ### Prerequisites
 
-* **Rust:** `1.84+` (`cargo`, `rustc`)
-* **Node.js:** `v20+` or `v22+` with `pnpm`
-* **Python (Optional for local OCR worker):** `3.10+` with `rapidocr-onnxruntime`
-* **System Libraries (Linux Debian/Ubuntu):**
-  ```bash
-  sudo apt-get update && sudo apt-get install -y \
-      libwebkit2gtk-4.1-dev build-essential curl wget file \
-      libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-  ```
+- Node.js and `pnpm` for the frontend.
+- Rust and the platform's Tauri 2 build prerequisites for the desktop app.
+- On Windows, the Visual Studio C++ build tools and WebView2. See the [Windows build guide](Docs/WINDOWS_BUILD_GUIDE.md) for the native toolchain and packaging steps.
+- A compatible local `llama-cli` binary and Qwen3 4B GGUF weights for chat and classification; the OCR worker and its models for scanned documents.
 
-### Development Setup
+### Start a development build
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/THE-SHRIKS/SAAR-LokiXPiyush.git
-   cd SAAR-LokiXPiyush
-   ```
-
-2. **Install frontend dependencies:**
-   ```bash
-   pnpm install
-   ```
-
-3. **Verify model assets:**
-   Ensure `models/weights/Qwen3-4B-Q4_K_M.gguf` is placed in `models/weights/`. Check hashes:
-   ```bash
-   sha256sum models/weights/Qwen3-4B-Q4_K_M.gguf
-   # Expected: 7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
-   ```
-
-4. **Launch development workstation:**
-   ```bash
-   pnpm tauri dev
-   ```
-
----
-
-## 🧪 Testing & Verification
-
-SAAR comes with a comprehensive test suite covering cryptographic safety, integer mathematics, AI grounding, and network denial:
-
-```bash
-# 1. Run all Rust unit and integration tests (61 tests)
-cargo test --manifest-path src-tauri/Cargo.toml
-
-# 2. Run frontend unit tests and type checks
-pnpm test
-pnpm run build
-
-# 3. Format & Lint Verification
-cargo fmt --check --manifest-path src-tauri/Cargo.toml
-pnpm run lint
-pnpm run format
-
-# 4. Execute Offline Network Egress Denial Audit (Linux namespace isolation)
-./scripts/network_egress_audit.sh
+```powershell
+git clone https://github.com/THE-SHRIKS/SAAR-LokiXPiyush.git
+cd SAAR-LokiXPiyush
+pnpm install --frozen-lockfile
+cargo install tauri-cli --version '^2' --locked
+cargo tauri dev
 ```
 
+The app looks for `bin/llama/llama-cli.exe` on Windows (or `bin/llama/llama-cli` on Unix) and `models/weights/Qwen3-4B-Q4_K_M.gguf` relative to the checkout. The expected model SHA-256 is `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5`, as recorded in the current Rust runtime. These files are not committed to Git. Without them, the core workspace can start, but local model features are unavailable.
+
+> **Source of truth:** Some older release and model manifest documents still describe earlier builds. For the active model path and hash, see [`src-tauri/src/ai/llm_engine.rs`](src-tauri/src/ai/llm_engine.rs). The newly added `runtime_paths.rs` helper is not yet connected to application startup.
+
+## How it works
+
+```mermaid
+flowchart TB
+    UI[React + TypeScript desktop interface]
+    IPC[Tauri command bridge]
+    CORE[Rust financial and document logic]
+    DB[(Per-workspace SQLCipher database)]
+    FILES[(Encrypted document store)]
+    LLM[Local llama.cpp runtime]
+    OCR[Local OCR worker]
+    UI --> IPC --> CORE
+    CORE --> DB
+    CORE --> FILES
+    CORE --> LLM
+    CORE --> OCR
+```
+
+| Area | Where to look |
+| :--- | :--- |
+| Interface and typed command calls | [`src/`](src/) |
+| Native application and IPC commands | [`src-tauri/src/`](src-tauri/src/) |
+| Financial arithmetic and reconciliation | [`src-tauri/src/finance/`](src-tauri/src/finance/) |
+| Database and workspace lifecycle | [`src-tauri/src/db/`](src-tauri/src/db/) and [`src-tauri/src/workspace_store.rs`](src-tauri/src/workspace_store.rs) |
+| OCR worker | [`workers/ocr/`](workers/ocr/) |
+| Design decisions and test evidence | [`Docs/`](Docs/) |
+
+## Verify a checkout
+
+```powershell
+pnpm test
+pnpm run build
+pnpm run lint
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+```
+
+Some native and GUI checks need the model, OCR sidecar, and platform specific tooling. The repository includes fixtures and evidence under [`tests/`](tests/) and [`Docs/evidence/`](Docs/evidence/). A successful source build alone does not verify an installer or a disconnected target machine.
+
+## Security and project notes
+
+SAAR is designed to keep financial data on the user's machine. The desktop configuration blocks webview network connections, and the repository includes an [egress audit](Docs/AUDIT/0001-network-egress-denial-audit.md). Review the [threat model](Docs/ADR/0002-threat-model-and-fixture-registry.md) and the code before using real financial records in a new environment.
+
+Third-party component notices are collected in [`Docs/ATTRIBUTION.md`](Docs/ATTRIBUTION.md). The repository currently has no root `LICENSE` file, so no project-wide open source license is asserted here.
+
+<div align="center">
+
 ---
 
-## 🔒 Security & Privacy Guarantees
+**SAAR** · Built by **THE SHRIKS**
 
-* **Zero Outbound Sockets:** Tested inside a disconnected Linux network namespace (`unshare -rn`) with loopback down. Verified **0 WAN packets, 0 DNS lookups**.
-* **Zero Binary Floating Point in Financial Paths:** Every transaction, tax, total, fee, and refund calculation uses signed 64-bit minor units (`Money { minor_units: i64, currency: String }`).
-* **Cryptographic Memory Zeroization:** Sensitive keys derived from Argon2id are wiped from RAM via the `zeroize` crate upon workspace lock or drop.
-* **PII & Credential Log Scrubber:** Built-in pattern scrubber redacts passphrases, API tokens, PAN card numbers, Aadhaar IDs, credit card numbers, and local file paths before any log emission.
-* **Immutable Audit Trail:** All user mutations, link approvals, invoice rejections, and category assignments record before/after states with timestamps in SQLite.
+*Bring the evidence closer to the answer.*
 
----
-
-## 📜 Attribution & Licensing
-
-* **Core Codebase:** Licensed under dual **MIT** / **Apache 2.0**.
-* **LLM Weights:** [Qwen3-4B](https://huggingface.co/Qwen/Qwen3-4B-GGUF) licensed under Apache 2.0.
-* **OCR Models:** [PaddleOCR / RapidOCR](https://github.com/RapidAI/RapidOCR) licensed under Apache 2.0.
-* For third-party notices and complete component manifests, refer to [`RELEASE_MANIFEST.md`](RELEASE_MANIFEST.md) and [`Docs/ATTRIBUTION.md`](Docs/ATTRIBUTION.md).
-
----
-
-<p align="center">
-  <b>SAAR</b> is developed and maintained with pride by <b>THE SHRIKS</b>.<br>
-  <i>Empowering local financial sovereignty with mathematical certainty.</i>
-</p>
+</div>
