@@ -387,11 +387,6 @@ try {
   const rb = await ask(appB, "What are my total expenses?");
   check(rb.verified && rb.text.includes(money(usd.expense, "USD")), "the restored workspace answers with the same figure");
   await appB.screenshot(path.join(shots, "14_restored_chat.png"));
-
-  // ---------------------------------------------------------------- L. Network
-  section("L. Application console errors");
-  const consoleErrors = await app.eval("0").catch(() => 0);
-  void consoleErrors;
 } catch (e) {
   lines.push("", `**RUN ABORTED:** ${e.message}`);
   console.error("RUN ABORTED:", e.message);

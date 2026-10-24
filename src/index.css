@@ -2817,3 +2817,28 @@ body,
   opacity: 0.65;
 }
 .field-source-meta span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* Reports: notice for transactions left out of base-currency totals */
+.currency-exclusion-notice {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 190, 90, 0.5));
+  border-left: 3px solid #e0a030;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Evidence inspector: plain-text and CSV previews scroll inside the panel instead of clipping. */
+.preview-csv-text {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow: auto;
+  text-align: left;
+  white-space: pre;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}

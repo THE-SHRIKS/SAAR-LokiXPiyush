@@ -12,6 +12,7 @@ import {
   Database,
 } from "lucide-react";
 import {
+  CurrencyCode,
   ProposedLink,
   FinancialAnomaly,
   TransactionRecord,
@@ -197,7 +198,10 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                         </span>
                       </div>
                       <div className="match-amount font-mono">
-                        {formatMinorCurrency(link.matchedAmountMinor, "USD")}
+                        {formatMinorCurrency(
+                          link.matchedAmountMinor,
+                          (transactions.find((t) => t.id === link.transactionId)?.currency ?? "USD") as CurrencyCode,
+                        )}
                       </div>
                     </div>
 

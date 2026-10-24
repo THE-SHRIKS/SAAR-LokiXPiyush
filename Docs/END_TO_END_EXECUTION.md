@@ -66,3 +66,51 @@ Final run: **PASS**. The full report is `Docs/evidence/e2e_command_layer_report.
 
 Windows Application Control intermittently refuses to start newly built test binaries
 ("os error 4551"). Each suite ran after retrying; no policy was bypassed.
+
+
+## Real-window run
+
+`tests/gui/gui_e2e.mjs` drives the actual `saar.exe` window (bundled frontend in WebView2, real Rust backend, encrypted storage, OCR worker and local model) through the WebView2 DevTools protocol on localhost: real clicks, real text input, real key events, real screenshots. No browser mock and no dev server. Expected figures come from the corpus ledger.
+
+```
+node tests/gui/gui_e2e.mjs
+```
+
+Final run: **61 checks, 0 failures.** Report: `Docs/evidence/gui_e2e_report.md`. Screenshots: `Docs/evidence/gui/`.
+
+| Area | Checked in the real window |
+|---|---|
+| Launch | starts from its packaged frontend; no demo or quick-unlock shortcut; mismatched passphrases rejected; workspace created through the form; database file on disk encrypted |
+| Navigation | every screen opens and shows its controls |
+| Import | 20 files imported through the Documents screen; re-import reported as duplicate; corrupted PDF rejected with a visible error and kept as one FAILED record |
+| Reconciliation | the Run button produces links and anomalies |
+| Chat | all-time, monthly and INR expenses, invoice total with citation, duplicates, absent invoice, wrong figure in the question, prompt injection, free-form text labelled Not verified; citation opens evidence; Ctrl+N opens a new conversation |
+| Reports | CSV (72 rows, equal to the ledger) and PDF written inside the data folder |
+| Backup | created from the Vault screen |
+| Lock / restart | lock, wrong passphrase rejected, correct passphrase unlocks; cold restart keeps history and documents; same question gives the same figure |
+| Layout | no horizontal overflow at 1920x1080, 1366x768, 1024x700 |
+| Restore | into a clean second installation from the Vault screen; workspace appears, unlocks, same documents, same figure |
+
+Verified answers return in under a second; a free-form model answer took 45 s on CPU.
+
+### Defects found only by driving the real window
+
+1. Financial Reports blanked the window (`null.toFixed` on the month-on-month change). Fixed; screens are now inside an error boundary.
+2. Import banner read `"undefined" (undefined)` (snake_case field names). Fixed; the command-layer test now fails on any snake_case key.
+3. Cold start offered "Create workspace" instead of unlocking the existing one.
+4. A failed import stayed PROCESSING; now FAILED immediately and audited.
+5. "Taxi fare" was read as a tax line; tax labels now match whole words.
+6. The model path failed on realistic workspaces (8311 tokens vs 4096 context) and showed the runtime error as an answer; the packet is now budgeted and runtime errors are failures.
+7. The restored workspace was missing from the unlock screen until restart.
+8. The evidence panel showed raw minor units and bounding-box JSON, unstyled, with hardcoded USD.
+9. Reports and review screens formatted every amount as USD; tile captions claimed "Approved/Verified" for unverified totals.
+10. The excluded-currency total was invisible in the UI.
+11. The cash-flow chart drew only four months and clipped labels.
+
+### What the real-window run does not prove
+
+- Not the installed package, installer, or a signed build.
+- Keyboard coverage is limited to Ctrl+N; no Tab-order or focus audit.
+- No cancel control for a running model request.
+- Offline operation with the network disconnected was not verified; see the open WebView2 finding in `Docs/SECURITY_AND_OFFLINE_VERIFICATION.md`.
+- Windows Application Control blocks `node.exe` from starting the unsigned debug build, so the harness starts it through PowerShell and then attaches. No policy was changed.

@@ -82,3 +82,19 @@ Verdict is unchanged: **NOT READY**, because the installed Windows GUI workflow 
 Test counts: 108 library tests (including the corpus, dynamic-result and answer tests), integration suites p1-p6, migration (3), golden dataset (2), end-to-end (1), frontend (7), all passing.
 
 Still open: GUI testing, installer build and install test, offline traffic capture, GPU inference and the Qwen3.5-4B evaluation, currency conversion, anomaly noise on recurring large payments, partial-payment linking, and moving decrypted temp files into a private folder.
+
+
+## Update after driving the real window
+
+Verdict unchanged: **NOT READY**, for the reasons in the last two rows.
+
+| Gate | Status now | Basis |
+|---|---|---|
+| 2 - Financial correctness | PASS for the deterministic engine; no currency conversion (other currencies reported as excluded, also on the reports screen) | corpus 0 mismatches; answers equal the ledger |
+| 3 - Data security | PASS for encrypted storage, migration, backup and restore (restore also from the Vault screen) | migration tests; command-layer and real-window runs |
+| 4 - AI reliability | PASS for the architecture: figures from code marked verified; model text always unverified; injection quarantined; model path no longer fails on realistic workspaces | answer tests; real-window chat checks |
+| 5 - Feature integration | PASS on the debug build: 61 real-window checks, 0 failures, 11 defects found and fixed | `Docs/evidence/gui_e2e_report.md` |
+| 6 - Native end-to-end | PARTIAL: full workflow ran in the real window, not from an installed package | `Docs/END_TO_END_EXECUTION.md` |
+| 7 - Offline release | FAIL / OPEN: WebView2 keeps outbound TLS connections despite Chromium flags; no disconnected-network run | `Docs/SECURITY_AND_OFFLINE_VERIFICATION.md` |
+
+Still open: WebView2 outbound connections (owner decision: firewall or runtime policy), installer build and install test, disconnected-network run, GPU inference and Qwen3.5-4B evaluation, currency conversion, anomaly noise on recurring large payments, partial-payment linking, model-request cancel control, keyboard/focus audit, private temp folder for decrypted files.

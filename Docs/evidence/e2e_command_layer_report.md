@@ -25,6 +25,11 @@
 - PASS: USD expenses equal the ledger
 - PASS: USD income equals the ledger
 - PASS: INR transactions are reported as excluded, not dropped silently
+- PASS: document details expose extracted fields with camelCase names
+- PASS: document preview loads
+- PASS: workspace search runs
+- PASS: audit log loads
+- PASS: export history loads
 
 ## 5. Chat
 
@@ -56,7 +61,7 @@
 ## 8. Restore into a clean installation
 
 - PASS: restore rejects a wrong backup passphrase
-- PASS: restore succeeded: Ok(String("18ad3d2d-1fea-4349-84ca-a44c32704fa2"))
+- PASS: restore succeeded: Ok(String("1fc0221c-e48a-444f-bd9b-26af396c91a6"))
 - PASS: restored workspace is listed
 - PASS: restored workspace rejects a wrong passphrase
 - PASS: restored workspace unlocks
@@ -69,10 +74,14 @@
 - PASS: a second restore refuses to overwrite
 - PASS: a tampered archive is rejected
 
+## Frontend contract
+
+- PASS: every command response uses the camelCase keys the frontend reads (violations: [])
+
 ## 9. Disk check
 
-- PASS: 18ad3d2d-1fea-4349-84ca-a44c32704fa2.saardb has no plaintext header
+- PASS: 1fc0221c-e48a-444f-bd9b-26af396c91a6.saardb has no plaintext header
 - PASS: no vendor name appears in plaintext
-- PASS: 18ad3d2d-1fea-4349-84ca-a44c32704fa2.saardb has no plaintext header
+- PASS: 1fc0221c-e48a-444f-bd9b-26af396c91a6.saardb has no plaintext header
 - PASS: no vendor name appears in plaintext
 - PASS: 2 encrypted databases inspected
