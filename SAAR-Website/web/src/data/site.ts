@@ -14,11 +14,17 @@ export const SITE_NAME = "SAAR";
 export const SITE_DESCRIPTION =
   "SAAR is an offline Windows desktop workspace for financial documents. Import invoices, receipts, and bank rows, reconcile them, and trace every figure back to its source.";
 
-/** Installer served from /downloads. Override with VITE_DOWNLOAD_URL to host it elsewhere. */
+/**
+ * The Windows installer is hosted as an asset on the GitHub Release for the
+ * current version, because it is larger than Vercel's static file limit.
+ * Override with VITE_DOWNLOAD_URL to host it somewhere else.
+ */
 export const DOWNLOAD_FILE_NAME = "SAAR-Setup.exe";
+export const DOWNLOAD_RELEASE_TAG = "v0.1.0";
 export const DOWNLOAD_URL =
   (import.meta.env["VITE_DOWNLOAD_URL"] as string | undefined) ??
-  `/downloads/${DOWNLOAD_FILE_NAME}`;
+  `https://github.com/THE-SHRIKS/SAAR-LokiXPiyush/releases/download/${DOWNLOAD_RELEASE_TAG}/${DOWNLOAD_FILE_NAME}`;
+export const DOWNLOAD_CHECKSUM_URL = `${DOWNLOAD_URL}.sha256`;
 
 export const REPO_URL = "https://github.com/THE-SHRIKS/SAAR-LokiXPiyush";
 export const REPO_ISSUES_URL = "https://github.com/THE-SHRIKS/SAAR-LokiXPiyush/issues";

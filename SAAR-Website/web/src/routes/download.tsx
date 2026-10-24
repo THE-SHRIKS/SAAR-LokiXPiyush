@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { APP_VERSION, DOWNLOAD_FILE_NAME, DOWNLOAD_URL } from "@/data/site";
+import { APP_VERSION, DOWNLOAD_CHECKSUM_URL, DOWNLOAD_FILE_NAME, DOWNLOAD_URL } from "@/data/site";
 import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/download")({
@@ -63,9 +63,9 @@ function Download() {
             </a>
             <p className="s-fineprint">
               Verify the file with its SHA-256 checksum:{" "}
-              <a href="/downloads/SAAR-Setup.exe.sha256">SAAR-Setup.exe.sha256</a>. In a command
-              prompt, run <code>certutil -hashfile {DOWNLOAD_FILE_NAME} SHA256</code> and compare
-              the result.
+              <a href={DOWNLOAD_CHECKSUM_URL}>{DOWNLOAD_FILE_NAME}.sha256</a>. In a command prompt,
+              run <code>certutil -hashfile {DOWNLOAD_FILE_NAME} SHA256</code> and compare the
+              result.
             </p>
           </div>
 
