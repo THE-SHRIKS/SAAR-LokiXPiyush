@@ -197,6 +197,7 @@ fn test_p6_02_encrypted_backup_wrong_passphrase_and_restore() {
         &blob_dir,
         &ws_id,
         "THE SHRIKS Phase 6 Corp",
+        "",
         &archive_path,
         correct_passphrase,
     )

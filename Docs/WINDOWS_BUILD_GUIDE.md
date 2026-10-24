@@ -35,8 +35,8 @@ Ensure the following toolchains are installed on the build machine:
    ```
 2. Verify model weights exist in `models\weights\`:
    ```powershell
-   Get-FileHash models\weights\Qwen2.5-3B-Instruct-Q3_K_M.gguf -Algorithm SHA256
-   # Must match: 8EFF4E0EB51A8148ABDAA9849F14F187E5AC6CD7D795610CAF996A287277C59D
+   Get-FileHash models\weights\Qwen3-4B-Q4_K_M.gguf -Algorithm SHA256
+   # Must match: 7485FE6F11AF29433BC51CAB58009521F205840F5B4AE3A32FA7F92E8534FDF5
    ```
 3. Zero environment secrets or cloud API keys are required. OpenDeck is 100% offline.
 

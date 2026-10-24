@@ -5,6 +5,13 @@ description = "SAAR - Offline Financial Intelligence Workspace"
 authors = ["THE SHRIKS"]
 edition = "2021"
 
+# The binary is a thin launcher with no unit tests; its test harness cannot run on Windows
+# without the application manifest, so it is not built for `cargo test`.
+[[bin]]
+name = "saar"
+path = "src/main.rs"
+test = false
+
 [lib]
 name = "saar_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -31,6 +38,7 @@ base64 = "0.23"
 anyhow = "1.0"
 hex = "0.4"
 regex = "1.13"
+tauri-plugin-dialog = "2"
 
 [profile.dev]
 incremental = true
@@ -48,5 +56,11 @@ opt-level = "s"
 panic = "abort"
 strip = true
 
-[dev-dependencies]
-tauri = { version = "2", features = ["test"] }
+[features]
+# Enables the Tauri mock runtime for the end-to-end command-layer test only. Kept opt-in so the
+# unit-test binaries are not built against the mock runtime.
+e2e = ["tauri/test"]
+
+[[test]]
+name = "e2e_bills"
+required-features = ["e2e"]

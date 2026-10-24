@@ -87,6 +87,7 @@ export interface DocumentDetails {
   fields: NormalizedField[];
   lineItems: DocumentLineItem[];
   invoiceTotalMinor?: number;
+  currency?: string | null;
 }
 
 export interface DocumentPreview {
@@ -143,6 +144,7 @@ export interface SystemStatus {
   ocrReady: boolean;
   llmReady: boolean;
   llmModelId: string;
+  llmModelLabel: string;
   activeWorkspaceId: string | null;
   databaseEncrypted: boolean;
 }
@@ -207,13 +209,29 @@ export interface MonthAggregate {
   transactionCount: number;
 }
 
+export interface CurrencyExclusion {
+  currency: string;
+  transactionCount: number;
+  grossMinor: number;
+}
+
+export interface InvoiceCurrencySummary {
+  currency: string;
+  invoiceCount: number;
+  totalMinor: number;
+  unmatchedCount: number;
+  unmatchedTotalMinor: number;
+}
+
 export interface FinancialSummary {
   totalIncomeMinor: number;
   totalExpenseMinor: number;
   netSavingsMinor: number;
   currency: string;
   monthlyBreakdown: MonthAggregate[];
-  momExpenseChangePercent?: number;
+  /** null when fewer than two months of data exist. */
+  momExpenseChangePercent?: number | null;
+  excludedCurrencies: CurrencyExclusion[];
 }
 
 export interface ReconciliationResult {

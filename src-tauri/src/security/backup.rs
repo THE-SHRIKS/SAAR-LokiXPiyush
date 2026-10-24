@@ -44,6 +44,10 @@ pub struct BackupManifest {
     pub db_sha256: String,
     pub blob_count: usize,
     pub total_raw_bytes: usize,
+    /// Argon2id salt of the workspace, needed to re-register it on restore. Older archives
+    /// without this field cannot be restored into the per-workspace layout.
+    #[serde(default)]
+    pub workspace_salt_hex: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -111,6 +115,7 @@ impl BackupService {
         blob_dir: &Path,
         workspace_id: &str,
         workspace_name: &str,
+        workspace_salt_hex: &str,
         dest_archive_path: &Path,
         passphrase: &str,
     ) -> Result<BackupManifest, BackupError> {
@@ -155,6 +160,7 @@ impl BackupService {
             db_sha256,
             blob_count,
             total_raw_bytes,
+            workspace_salt_hex: workspace_salt_hex.to_string(),
         };
 
         let payload = BackupArchivePayload {
@@ -274,14 +280,19 @@ impl BackupService {
         }
         fs::write(target_db_path, &payload.sqlite_db)?;
 
-        // Verify SQLite database integrity using rusqlite
-        let conn = Connection::open(target_db_path)?;
-        let integrity_result: String =
-            conn.query_row("PRAGMA integrity_check;", [], |row| row.get(0))?;
-        if integrity_result != "ok" {
-            return Err(BackupError::IntegrityCheckFailed(format!(
-                "SQLite PRAGMA integrity_check reported: {integrity_result}"
-            )));
+        // A plaintext SQLite file can be checked directly. An encrypted workspace database cannot
+        // be opened without its key; its content is already authenticated by the archive's
+        // AES-GCM tag and the database SHA-256 verified above, and SQLCipher verifies every page
+        // when the workspace is unlocked.
+        if payload.sqlite_db.starts_with(b"SQLite format 3") {
+            let conn = Connection::open(target_db_path)?;
+            let integrity_result: String =
+                conn.query_row("PRAGMA integrity_check;", [], |row| row.get(0))?;
+            if integrity_result != "ok" {
+                return Err(BackupError::IntegrityCheckFailed(format!(
+                    "SQLite PRAGMA integrity_check reported: {integrity_result}"
+                )));
+            }
         }
 
         // Unpack blobs with path traversal protection

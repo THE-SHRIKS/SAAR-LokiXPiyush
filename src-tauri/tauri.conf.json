@@ -14,6 +14,7 @@
     "windows": [
       {
         "title": "SAAR — Financial Intelligence",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msEdgeUpdateCheck --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --disable-client-side-phishing-detection --disable-breakpad --no-pings --no-default-browser-check --host-resolver-rules=\"MAP * ~NOTFOUND\" --proxy-server=http://127.0.0.1:9",
         "width": 1280,
         "height": 840,
         "minWidth": 900,

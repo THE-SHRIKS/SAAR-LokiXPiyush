@@ -5,8 +5,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+/// Weights shipped with SAAR: Qwen3-4B, Q4_K_M. The hash is of the file downloaded from the
+/// official Qwen/Qwen3-4B-GGUF repository (2,497,280,256 bytes).
+pub const MODEL_FILE_NAME: &str = "Qwen3-4B-Q4_K_M.gguf";
+pub const MODEL_ID: &str = "qwen3-4b-q4_k_m";
+pub const MODEL_LABEL: &str = "Qwen3 4B";
 pub const EXPECTED_MODEL_SHA256: &str =
-    "8eff4e0eb51a8148abdaa9849f14f187e5ac6cd7d795610caf996a287277c59d";
+    "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5";
 
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {
@@ -29,6 +34,8 @@ pub struct LlmConfig {
     pub binary_path: PathBuf,
     pub model_path: PathBuf,
     pub thread_count: usize,
+    /// Layers offloaded to the GPU. 0 forces CPU. If the GPU run fails, generation retries on CPU.
+    pub gpu_layers: usize,
     pub context_size: usize,
     pub max_tokens: usize,
     pub timeout: Duration,
@@ -61,8 +68,9 @@ impl Default for LlmConfig {
 
         Self {
             binary_path,
-            model_path: root.join("models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf"),
-            thread_count: 2, // Intel Core i3 dual-core
+            model_path: root.join("models/weights").join(MODEL_FILE_NAME),
+            thread_count: 4,
+            gpu_layers: 99,
             context_size: 4096,
             max_tokens: 256,
             timeout: Duration::from_secs(240),
@@ -111,7 +119,7 @@ impl LlmEngine {
         Ok(())
     }
 
-    /// Runs local inference against Qwen2.5-3B-Instruct with greedy deterministic sampling.
+    /// Runs local inference against the bundled Qwen3 model with greedy deterministic sampling.
     /// Optionally constrains output using a GBNF grammar string or file.
     pub fn generate(
         &self,
@@ -119,8 +127,25 @@ impl LlmEngine {
         user_prompt: &str,
         grammar: Option<&str>,
     ) -> Result<String, LlmError> {
+        match self.generate_with(system_prompt, user_prompt, grammar, self.config.gpu_layers) {
+            // A GPU run can fail on drivers or memory the build cannot use; the CPU path always works.
+            Err(LlmError::ExecutionFailed { .. }) if self.config.gpu_layers > 0 => {
+                self.generate_with(system_prompt, user_prompt, grammar, 0)
+            }
+            other => other,
+        }
+    }
+
+    fn generate_with(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+        grammar: Option<&str>,
+        gpu_layers: usize,
+    ) -> Result<String, LlmError> {
         let full_prompt = format!(
-            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
+            // Qwen3 thinks before answering unless the assistant turn opens with an empty think block.
+            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
             system_prompt.trim(),
             user_prompt.trim()
         );
@@ -143,7 +168,9 @@ impl LlmEngine {
             .arg("0.0") // Strict deterministic greedy sampling
             .arg("--simple-io")
             .arg("-ngl")
-            .arg("0"); // AVX2 CPU fallback
+            .arg(gpu_layers.to_string())
+            .arg("--reasoning")
+            .arg("off");
 
         // If grammar is specified, write to a temp grammar file
         let mut temp_grammar_path = None;
@@ -195,11 +222,23 @@ impl LlmEngine {
         }
 
         let raw_stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        clean_llm_output(&raw_stdout).ok_or_else(|| LlmError::ExecutionFailed {
+        let answer = clean_llm_output(&raw_stdout).ok_or_else(|| LlmError::ExecutionFailed {
             code: output.status.code(),
             stderr: "Model output did not contain an assistant answer".to_string(),
-        })
+        })?;
+        // llama-cli reports some failures (for example a prompt larger than the context window)
+        // as ordinary text with exit code 0. That is a failure, not an answer.
+        if is_runtime_error_text(&answer) {
+            return Err(LlmError::ExecutionFailed { code: output.status.code(), stderr: answer });
+        }
+        Ok(answer)
     }
+}
+
+/// True for text that llama-cli prints when it fails but still exits successfully.
+fn is_runtime_error_text(answer: &str) -> bool {
+    let head = answer.trim_start();
+    head.starts_with("Error:") || head.starts_with("error:")
 }
 
 /// Extracts the model's answer from llama-cli stdout.
@@ -229,7 +268,15 @@ fn clean_llm_output(raw: &str) -> Option<String> {
     if let Some(pos) = out.find("Exiting...") {
         out = &out[..pos];
     }
-    Some(out.trim_end_matches("<|im_end|>").trim().to_string())
+    let mut answer = out.trim_end_matches("<|im_end|>").trim();
+    // The prompt ends with an empty think block; the echo or the model may repeat it.
+    while let Some(rest) = answer.strip_prefix("<think>") {
+        match rest.find("</think>") {
+            Some(end) => answer = rest[end + "</think>".len()..].trim_start(),
+            None => return None,
+        }
+    }
+    Some(answer.to_string())
 }
 
 #[cfg(test)]
@@ -273,6 +320,19 @@ mod tests {
             clean_llm_output(raw).as_deref(),
             Some("Net figures: 742.81 USD [inv:abc].")
         );
+    }
+
+    #[test]
+    fn test_clean_llm_output_drops_the_empty_think_block() {
+        let raw = "> <|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHello there.\n\n[ Prompt: 1 t/s ]\n";
+        assert_eq!(clean_llm_output(raw).as_deref(), Some("Hello there."));
+    }
+
+    #[test]
+    fn test_runtime_error_text_is_not_an_answer() {
+        assert!(is_runtime_error_text("Error: request (8311 tokens) exceeds the available context size (4096 tokens)"));
+        assert!(is_runtime_error_text("  error: failed to load model"));
+        assert!(!is_runtime_error_text("The error rate was 2%."));
     }
 
     #[test]

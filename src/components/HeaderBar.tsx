@@ -1,8 +1,10 @@
 import React from "react";
-import { Search, RefreshCw, PanelRightClose, PanelRightOpen, Cpu, Sun, Moon } from "lucide-react";
+import { Search, RefreshCw, PanelRightClose, PanelRightOpen, PanelLeftOpen, Cpu, Sun, Moon } from "lucide-react";
 import { SearchResult, WorkspaceInfo } from "../lib/types";
 
 interface HeaderBarProps {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
   workspace: WorkspaceInfo | null;
   activeTabTitle: string;
   searchQuery: string;
@@ -15,10 +17,13 @@ interface HeaderBarProps {
   hasInspectorContent: boolean;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  modelLabel: string;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   workspace: _workspace,
+  sidebarCollapsed,
+  onToggleSidebar,
   activeTabTitle,
   searchQuery,
   onSearchChange,
@@ -30,15 +35,21 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   hasInspectorContent,
   theme,
   onToggleTheme,
+  modelLabel,
 }) => {
   return (
     <header className="claude-header-bar">
       {/* Left: Active View / Thread Title */}
       <div className="header-left-col">
+        {sidebarCollapsed && (
+          <button className="header-icon-btn" onClick={onToggleSidebar} title="Show sidebar (Ctrl+B)" aria-label="Show sidebar">
+            <PanelLeftOpen size={16} />
+          </button>
+        )}
         <h2 className="header-active-title">{activeTabTitle}</h2>
       </div>
 
-      {/* Center: Global SQLite FTS5 Search */}
+      {/* Center: global search */}
       <div className="header-center-col">
         <div className="global-search-container">
           <div className="search-icon-slot">
@@ -51,7 +62,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <input
             type="text"
             className="global-search-input"
-            placeholder="Search documents, invoices, transactions... (FTS5)"
+            placeholder="Search documents, invoices and transactions"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -93,7 +104,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <button
           className="theme-toggle-btn"
           onClick={onToggleTheme}
-          title={theme === "dark" ? "Switch to Warm Linen Light Theme (#EAE0CF)" : "Switch to Midnight Navy Dark Theme (#111844)"}
+          title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
           aria-label="Toggle Theme"
         >
           {theme === "dark" ? (
@@ -101,12 +112,12 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           ) : (
             <Moon size={14} className="theme-icon moon" />
           )}
-          <span className="theme-label">{theme === "dark" ? "Linen" : "Midnight"}</span>
+          <span className="theme-label">{theme === "dark" ? "Light" : "Dark"}</span>
         </button>
 
-        <div className="model-chip" title="Local AVX2 inference via llama-cli. Zero WAN sockets.">
+        <div className="model-chip" title="Local inference with llama.cpp. The model runs on this computer.">
           <Cpu size={12} className="model-chip-icon" />
-          <span className="model-chip-label">Qwen2.5-3B</span>
+          <span className="model-chip-label">{modelLabel}</span>
         </div>
 
         <button

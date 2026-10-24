@@ -7,10 +7,11 @@ import {
   TrendingUp,
   CheckCircle2,
 } from "lucide-react";
-import { FinancialSummary, ExportResult, formatMinorCurrency } from "../lib/types";
+import { CurrencyCode, FinancialSummary, InvoiceCurrencySummary, ExportResult, formatMinorCurrency } from "../lib/types";
 
 interface ReportsViewProps {
   financialSummary: FinancialSummary | null;
+  invoiceSummary: InvoiceCurrencySummary[];
   reportExports: ExportResult[];
   isExporting: boolean;
   exportFeedback: string | null;
@@ -19,20 +20,22 @@ interface ReportsViewProps {
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   financialSummary,
+  invoiceSummary,
   reportExports,
   isExporting,
   exportFeedback,
   onExportReport,
 }) => {
+  // Amounts are shown in the currency they are stored in, never assumed to be USD.
+  const baseCurrency = (financialSummary?.currency ?? "USD") as CurrencyCode;
   return (
     <div className="reports-workspace">
       {/* Top Export Command Bar */}
       <div className="reports-command-bar">
         <div className="command-bar-info">
-          <h3>Deterministic Financial Reports</h3>
+          <h3>Reports</h3>
           <span className="command-bar-sub">
-            Exact minor-unit ledger arithmetic · Provenance-audited vector PDF & RFC 4180 CSV
-            exports
+            Totals are calculated from your records. Export as PDF or CSV.
           </span>
         </div>
 
@@ -43,7 +46,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             disabled={isExporting}
           >
             <Download size={13} />
-            <span>{isExporting ? "Rendering PDF..." : "Export Source-Traceable PDF"}</span>
+            <span>{isExporting ? "Rendering PDF..." : "Export PDF"}</span>
           </button>
 
           <button
@@ -52,7 +55,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             disabled={isExporting}
           >
             <FileText size={13} />
-            <span>{isExporting ? "Generating CSV..." : "Export Ledger CSV"}</span>
+            <span>{isExporting ? "Generating CSV..." : "Export CSV"}</span>
           </button>
         </div>
       </div>
@@ -64,38 +67,66 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
+      {invoiceSummary.length > 0 && (
+        <div className="invoice-summary-block">
+          <h4 className="invoice-summary-title">Invoices imported</h4>
+          <div className="reports-metric-grid">
+            {invoiceSummary.map((row) => (
+              <div className="metric-tile" key={row.currency}>
+                <span className="metric-label">{row.currency} invoices</span>
+                <div className="metric-value font-mono">
+                  {formatMinorCurrency(row.totalMinor, row.currency as CurrencyCode)}
+                </div>
+                <span className="metric-subtext">
+                  {row.invoiceCount} {row.invoiceCount === 1 ? "invoice" : "invoices"}
+                  {row.unmatchedCount > 0
+                    ? `, ${row.unmatchedCount} without a matching payment (${formatMinorCurrency(row.unmatchedTotalMinor, row.currency as CurrencyCode)})`
+                    : ", all matched to a payment"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {financialSummary && financialSummary.totalIncomeMinor === 0 && financialSummary.totalExpenseMinor === 0 && (
+        <div className="reports-empty-note">
+          No bank transactions in {financialSummary.currency} yet. Money in, money out and the monthly chart come from bank statements; import one on the Documents screen.
+        </div>
+      )}
+
       {/* KPI Metric Cards Grid */}
       {financialSummary && (
         <div className="reports-metric-grid">
           <div className="metric-tile">
-            <span className="metric-label">Total Inflow / Revenue</span>
+            <span className="metric-label">Money in</span>
             <div className="metric-value amount-credit font-mono">
-              {formatMinorCurrency(financialSummary.totalIncomeMinor, "USD")}
+              {formatMinorCurrency(financialSummary.totalIncomeMinor, baseCurrency)}
             </div>
-            <span className="metric-subtext">Approved client receivables & payouts</span>
+            <span className="metric-subtext">Credits in {financialSummary.currency}, all imported records</span>
           </div>
 
           <div className="metric-tile">
-            <span className="metric-label">Total Outflow / Expenses</span>
+            <span className="metric-label">Money out</span>
             <div className="metric-value amount-debit font-mono">
-              {formatMinorCurrency(financialSummary.totalExpenseMinor, "USD")}
+              {formatMinorCurrency(financialSummary.totalExpenseMinor, baseCurrency)}
             </div>
-            <span className="metric-subtext">Verified vendor debits & invoices</span>
+            <span className="metric-subtext">Debits in {financialSummary.currency}, all imported records</span>
           </div>
 
           <div className="metric-tile">
-            <span className="metric-label">Net Operating Surplus</span>
+            <span className="metric-label">Net</span>
             <div
               className={`metric-value font-mono ${
                 financialSummary.netSavingsMinor >= 0 ? "amount-credit" : "amount-debit"
               }`}
             >
-              {formatMinorCurrency(financialSummary.netSavingsMinor, "USD")}
+              {formatMinorCurrency(financialSummary.netSavingsMinor, baseCurrency)}
             </div>
-            <span className="metric-subtext">Deterministic minor-unit net balance</span>
+            <span className="metric-subtext">Credits minus debits in {financialSummary.currency}</span>
           </div>
 
-          {financialSummary.momExpenseChangePercent !== undefined && (
+          {financialSummary.momExpenseChangePercent != null && (
             <div className="metric-tile">
               <span className="metric-label">MoM Expense Trend</span>
               <div className="metric-trend-row">
@@ -120,85 +151,78 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
+      {/* Transactions in other currencies are never merged into these totals; say so. */}
+      {financialSummary && financialSummary.excludedCurrencies && financialSummary.excludedCurrencies.length > 0 && (
+        <div className="currency-exclusion-notice" role="note">
+          <strong>Not included in these totals:</strong>{" "}
+          {financialSummary.excludedCurrencies
+            .map(
+              (c) =>
+                `${c.transactionCount} transaction${c.transactionCount === 1 ? "" : "s"} in ${c.currency} (${formatMinorCurrency(c.grossMinor, c.currency as CurrencyCode)} gross)`,
+            )
+            .join("; ")}
+          . They are in a different currency and no exchange rate is recorded.
+        </div>
+      )}
+
       {/* Monthly Cash Flow Trend Visualizer (SVG) */}
       {financialSummary && financialSummary.monthlyBreakdown.length > 0 && (
         <div className="reports-chart-card">
           <div className="chart-card-head">
             <BarChart3 size={15} className="icon-cream" />
-            <h4>Monthly Cash Flow Trajectory</h4>
-            <span className="chart-sub">Minor-unit integer height scaling</span>
+            <h4>Monthly cash flow</h4>
+            <span className="chart-sub">Income and expenses by month</span>
           </div>
 
           <div className="chart-svg-container">
-            <svg width="100%" height="160" viewBox="0 0 640 160" className="trend-svg">
-              {financialSummary.monthlyBreakdown.map((m, idx) => {
-                const maxAmount = Math.max(
-                  ...financialSummary.monthlyBreakdown.map((x) =>
-                    Math.max(x.totalIncomeMinor, x.totalExpenseMinor)
-                  ),
-                  1
-                );
-                const xOffset = 60 + idx * 160;
-                const incomeH = Math.max(Math.round((m.totalIncomeMinor / maxAmount) * 110), 4);
-                const expenseH = Math.max(Math.round((m.totalExpenseMinor / maxAmount) * 110), 4);
-
-                return (
-                  <g key={m.monthKey} className="chart-group">
-                    {/* Income Bar (Emerald) */}
-                    <rect
-                      x={xOffset}
-                      y={120 - incomeH}
-                      width="32"
-                      height={incomeH}
-                      fill="#22C55E"
-                      rx="2"
-                    />
-                    <text
-                      x={xOffset + 16}
-                      y={114 - incomeH}
-                      textAnchor="middle"
-                      fill="#86EFAC"
-                      fontSize="9"
-                      fontFamily="monospace"
-                    >
-                      {formatMinorCurrency(m.totalIncomeMinor, "USD")}
-                    </text>
-
-                    {/* Expense Bar (Ruby) */}
-                    <rect
-                      x={xOffset + 38}
-                      y={120 - expenseH}
-                      width="32"
-                      height={expenseH}
-                      fill="#EF4444"
-                      rx="2"
-                    />
-                    <text
-                      x={xOffset + 54}
-                      y={114 - expenseH}
-                      textAnchor="middle"
-                      fill="#FCA5A5"
-                      fontSize="9"
-                      fontFamily="monospace"
-                    >
-                      {formatMinorCurrency(m.totalExpenseMinor, "USD")}
-                    </text>
-
-                    {/* Month Label */}
-                    <text
-                      x={xOffset + 35}
-                      y="142"
-                      textAnchor="middle"
-                      fill="#739EC9"
-                      fontSize="11"
-                      fontFamily="sans-serif"
-                    >
-                      {m.monthKey}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+            {(() => {
+              const months = financialSummary.monthlyBreakdown;
+              const maxAmount = Math.max(...months.flatMap((x) => [x.totalIncomeMinor, x.totalExpenseMinor]), 1);
+              // Slots scale with the number of months, so every month is drawn.
+              const plotLeft = 20;
+              const plotWidth = 600;
+              const slot = plotWidth / months.length;
+              const barW = Math.max(6, Math.min(32, slot / 3));
+              const baseline = 158;
+              const maxBar = 112;
+              const symbolOf = (cur: CurrencyCode) => formatMinorCurrency(0, cur).replace(/[0-9.,\s]/g, "");
+              const compact = (minor: number, cur: CurrencyCode) => {
+                const major = Math.round(Math.abs(minor) / 100);
+                const body =
+                  major >= 1_000_000 ? `${(major / 1_000_000).toFixed(1)}M` : major >= 1_000 ? `${(major / 1_000).toFixed(1)}k` : `${major}`;
+                return `${symbolOf(cur)}${body}`;
+              };
+              const thin = months.length > 8; // with many months, label every other one
+              return (
+                <svg width="100%" height="200" viewBox="0 0 640 200" className="trend-svg" role="img" aria-label="Monthly income and expenses">
+                  {months.map((m, idx) => {
+                    const cur = m.currency as CurrencyCode;
+                    const centre = plotLeft + idx * slot + slot / 2;
+                    const incomeH = Math.max(Math.round((m.totalIncomeMinor / maxAmount) * maxBar), 2);
+                    const expenseH = Math.max(Math.round((m.totalExpenseMinor / maxAmount) * maxBar), 2);
+                    return (
+                      <g key={m.monthKey} className="chart-group">
+                        <title>{`${m.monthKey}: income ${formatMinorCurrency(m.totalIncomeMinor, cur)}, expenses ${formatMinorCurrency(m.totalExpenseMinor, cur)}`}</title>
+                        <rect x={centre - barW - 2} y={baseline - incomeH} width={barW} height={incomeH} style={{ fill: "var(--color-credit)" }} rx="2" />
+                        <rect x={centre + 2} y={baseline - expenseH} width={barW} height={expenseH} style={{ fill: "var(--color-debit)" }} rx="2" />
+                        {/* Income label ends at the centre line, expense label starts at it: they never overlap. */}
+                        <text x={centre - 3} y={baseline - incomeH - 5} textAnchor="end" style={{ fill: "var(--text-secondary)" }} fontSize="10" fontFamily="monospace">
+                          {compact(m.totalIncomeMinor, cur)}
+                        </text>
+                        <text x={centre + 3} y={baseline - expenseH - 5} textAnchor="start" style={{ fill: "var(--text-secondary)" }} fontSize="10" fontFamily="monospace">
+                          {compact(m.totalExpenseMinor, cur)}
+                        </text>
+                        {(!thin || idx % 2 === 0) && (
+                          <text x={centre} y={baseline + 18} textAnchor="middle" style={{ fill: "var(--text-muted)" }} fontSize="11" fontFamily="sans-serif">
+                            {m.monthKey}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -226,17 +250,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <td className="font-mono text-xs">{m.monthKey}</td>
                   <td className="font-mono text-xs">{m.transactionCount}</td>
                   <td className="num-col font-mono amount-credit">
-                    {formatMinorCurrency(m.totalIncomeMinor, "USD")}
+                    {formatMinorCurrency(m.totalIncomeMinor, m.currency as CurrencyCode)}
                   </td>
                   <td className="num-col font-mono amount-debit">
-                    {formatMinorCurrency(m.totalExpenseMinor, "USD")}
+                    {formatMinorCurrency(m.totalExpenseMinor, m.currency as CurrencyCode)}
                   </td>
                   <td
                     className={`num-col font-mono ${
                       m.netCashFlowMinor >= 0 ? "amount-credit" : "amount-debit"
                     }`}
                   >
-                    {formatMinorCurrency(m.netCashFlowMinor, "USD")}
+                    {formatMinorCurrency(m.netCashFlowMinor, m.currency as CurrencyCode)}
                   </td>
                 </tr>
               ))}
@@ -248,16 +272,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Historical Report Exports Table */}
       <div className="reports-table-card">
         <div className="table-card-head">
-          <span className="table-head-title">Generated Report Exports & Cryptographic Proofs</span>
-          <span className="table-head-subtitle">SHA-256 immutable snapshot fingerprints</span>
+          <span className="table-head-title">Exported reports</span>
+          <span className="table-head-subtitle">Saved on this computer</span>
         </div>
 
         {reportExports.length === 0 ? (
           <div className="empty-panel-state">
-            <p>No reports exported yet.</p>
+            <p>No exports yet</p>
             <span>
-              Click &ldquo;Export Source-Traceable PDF&rdquo; above to generate your first audit
-              package.
+              Use Export PDF or Export CSV above. Files are saved on this computer.
             </span>
           </div>
         ) : (

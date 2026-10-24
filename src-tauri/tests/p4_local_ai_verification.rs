@@ -1,3 +1,4 @@
+use saar_lib::ai::answer_plan as answers;
 use saar_lib::ai::{
     AdversarialDefense, GroundingEngine, LlmConfig, LlmEngine, SearchEngine, TransactionClassifier,
 };
@@ -227,24 +228,38 @@ fn test_p4_full_local_ai_and_grounded_chat_verification() {
         2,
         "Must contain CloudHosting and GST invoices"
     );
-    let (sys_prompt, usr_prompt) = GroundingEngine::build_prompts(&fact_packet);
+    // 5a. Deterministic: the figure is computed from the records, exact, and marked verified.
+    //     This does not depend on any language model.
+    match answers::plan(db.conn_ref(), workspace_id, "USD", question).expect("plan") {
+        answers::AnswerPlan::Verified(answer) => {
+            let total = answer
+                .figures
+                .iter()
+                .find(|f| f.label == "invoices total")
+                .expect("an invoices total figure");
+            assert_eq!(total.minor, 12000, "CloudHosting invoice total is exactly 120.00 USD");
+            assert_eq!(total.currency, "USD");
+            assert!(answer.text.contains("120.00 USD"), "{}", answer.text);
+            assert!(!answer.citations.is_empty(), "the answer must cite its source invoice");
+            let response = answers::verified_response(&answer);
+            assert!(response.grounded);
+        }
+        _ => panic!("an invoice question about a named vendor must be answered from records"),
+    }
 
+    // 5b. Local model: it loads, completes inference offline, returns clean text, and whatever it
+    //     writes is never marked verified. The assertions do not depend on its exact wording.
+    let (sys_prompt, usr_prompt) = GroundingEngine::build_prompts(&fact_packet);
     let raw_answer = llm_engine
         .generate(&sys_prompt, &usr_prompt, None)
         .expect("Local Q&A generation must succeed");
-
-    let chat_response = GroundingEngine::validate_and_parse_response(&fact_packet, &raw_answer);
-    assert!(
-        chat_response.grounded,
-        "Response must be verified grounded without hallucinations: {}",
-        chat_response.verification_note
-    );
-    eprintln!("P4 grounded answer: {}", chat_response.answer);
-    // Answer must cite either the invoice or transaction ID or reference
-    assert!(
-        chat_response.answer.contains("120") || chat_response.answer.contains("CloudHosting"),
-        "Answer must mention the exact CloudHosting figure"
-    );
+    assert!(!raw_answer.trim().is_empty(), "the model must return text");
+    for artifact in ["Loading model", "available commands", "<|im_start|>", "<|im_end|>"] {
+        assert!(!raw_answer.contains(artifact), "runtime output leaked into the answer: {artifact}");
+    }
+    let chat_response = answers::model_response(&fact_packet, &raw_answer);
+    assert!(!chat_response.grounded, "model-written text is never marked verified");
+    assert!(chat_response.verification_note.starts_with("Not verified"));
 
     // -------------------------------------------------------------
     // Step 6: P4-05 Prompt Injection Defense & Hallucination Guard

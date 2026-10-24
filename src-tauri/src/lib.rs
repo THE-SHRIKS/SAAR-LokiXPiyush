@@ -7,34 +7,31 @@ pub mod ingestion;
 pub mod security;
 pub mod state;
 pub mod supervisor;
+pub mod workspace_migration;
+pub mod workspace_store;
 #[cfg(test)]
 pub mod integration_tests;
 
 use ai::{LlmConfig, LlmEngine};
-use db::Database;
 use ingestion::OcrClient;
-use security::BlobStore;
 use state::AppState;
 
 pub fn run() {
-    let app_state = AppState::new();
-
-    // In local development / portable execution, initialize database and blob storage
-    let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
-        .map(|dirs| dirs.data_local_dir().to_path_buf())
+    // Application data root. No database is opened here: each workspace has its own encrypted
+    // database and is opened only after its passphrase is verified (see `unlock_workspace`).
+    // SAAR_DATA_DIR relocates all workspace data (portable installs, and isolated test runs that
+    // must not touch the user's real data folder).
+    let data_dir = std::env::var_os("SAAR_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .filter(|p| !p.as_os_str().is_empty())
+        .or_else(|| {
+            directories::ProjectDirs::from("com", "theshriks", "saar")
+                .map(|dirs| dirs.data_local_dir().to_path_buf())
+        })
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
     let _ = std::fs::create_dir_all(&data_dir);
-    let db_path = data_dir.join("saar_workspace.db");
-    let blob_path = data_dir.join("blobs");
 
-    if let Ok(db) = Database::open(&db_path) {
-        *app_state.db.lock().unwrap() = Some(db);
-    }
-
-    if let Ok(store) = BlobStore::new(&blob_path) {
-        *app_state.blob_store.lock().unwrap() = Some(store);
-    }
+    let app_state = AppState::new(data_dir);
 
     if let Ok(ocr) = OcrClient::new() {
         *app_state.ocr_client.lock().unwrap() = Some(ocr);
@@ -45,6 +42,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::get_system_status,
@@ -64,6 +62,7 @@ pub fn run() {
             commands::correct_transaction,
             commands::list_audit_log,
             commands::get_financial_summary,
+            commands::get_invoice_summary,
             commands::chat_grounded,
             commands::classify_transaction,
             commands::approve_category,

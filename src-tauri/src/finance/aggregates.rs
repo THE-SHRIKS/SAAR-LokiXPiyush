@@ -22,6 +22,17 @@ pub struct FinancialSummary {
     pub currency: String,
     pub monthly_breakdown: Vec<MonthAggregate>,
     pub mom_expense_change_percent: Option<f64>,
+    /// Transactions left out of these totals because their currency differs from the target.
+    /// Reported so that nothing is dropped silently. Amounts are gross, in each currency's minor units.
+    pub excluded_currencies: Vec<CurrencyExclusion>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrencyExclusion {
+    pub currency: String,
+    pub transaction_count: usize,
+    pub gross_minor: i64,
 }
 
 pub struct FinancialAggregator;
@@ -35,10 +46,14 @@ impl FinancialAggregator {
         let mut monthly_map: BTreeMap<String, (i64, i64, usize)> = BTreeMap::new();
         let mut total_income = 0i64;
         let mut total_expense = 0i64;
+        let mut excluded: BTreeMap<String, (usize, i64)> = BTreeMap::new();
 
         for tx in transactions {
             // Aggregate only matching currency to avoid mixed currency corruption
             if tx.currency != target_currency {
+                let entry = excluded.entry(tx.currency.clone()).or_insert((0usize, 0i64));
+                entry.0 += 1;
+                entry.1 += tx.amount_minor.abs();
                 continue;
             }
 
@@ -99,6 +114,14 @@ impl FinancialAggregator {
             currency: target_currency.to_string(),
             monthly_breakdown,
             mom_expense_change_percent: mom_change,
+            excluded_currencies: excluded
+                .into_iter()
+                .map(|(currency, (transaction_count, gross_minor))| CurrencyExclusion {
+                    currency,
+                    transaction_count,
+                    gross_minor,
+                })
+                .collect(),
         }
     }
 }
@@ -186,5 +209,136 @@ mod tests {
         assert_eq!(summary.monthly_breakdown[1].net_cash_flow_minor, 483450);
 
         assert_eq!(summary.mom_expense_change_percent, Some(-66.9));
+    }
+}
+
+#[cfg(test)]
+mod excluded_currency_tests {
+    use super::*;
+
+    fn tx(id: &str, amount: i64, currency: &str) -> TransactionCandidate {
+        TransactionCandidate {
+            id: id.to_string(),
+            posted_date: "2026-09-01".to_string(),
+            description: "X".to_string(),
+            amount_minor: amount,
+            currency: currency.to_string(),
+            external_ref: None,
+        }
+    }
+
+    #[test]
+    fn test_other_currencies_are_excluded_from_totals_but_reported() {
+        let txs = vec![
+            tx("u1", -1000, "USD"),
+            tx("u2", 500, "USD"),
+            tx("e1", -120000, "EUR"),
+            tx("e2", 9999, "EUR"),
+            tx("i1", -1500050, "INR"),
+        ];
+        let summary = FinancialAggregator::compute_summary(&txs, "USD");
+        // Totals cover USD only.
+        assert_eq!(summary.total_expense_minor, 1000);
+        assert_eq!(summary.total_income_minor, 500);
+        // Excluded currencies are reported with exact counts and gross minor units.
+        assert_eq!(
+            summary.excluded_currencies,
+            vec![
+                CurrencyExclusion { currency: "EUR".into(), transaction_count: 2, gross_minor: 129999 },
+                CurrencyExclusion { currency: "INR".into(), transaction_count: 1, gross_minor: 1500050 },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_no_exclusions_when_all_rows_match_target() {
+        let txs = vec![tx("u1", -1000, "USD")];
+        let summary = FinancialAggregator::compute_summary(&txs, "USD");
+        assert!(summary.excluded_currencies.is_empty());
+    }
+}
+
+/// Invoices (bills) imported into a workspace, per currency. Bank totals come from transactions
+/// only, so this is what shows that imported bills were read even before a bank statement exists.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InvoiceCurrencySummary {
+    pub currency: String,
+    pub invoice_count: i64,
+    pub total_minor: i64,
+    /// Invoices with no proposed or approved bank payment link.
+    pub unmatched_count: i64,
+    pub unmatched_total_minor: i64,
+}
+
+pub fn invoice_summary(
+    conn: &rusqlite::Connection,
+    workspace_id: &str,
+) -> rusqlite::Result<Vec<InvoiceCurrencySummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT i.currency,
+                COUNT(*),
+                COALESCE(SUM(i.total_minor), 0),
+                COALESCE(SUM(CASE WHEN l.invoice_id IS NULL THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN l.invoice_id IS NULL THEN i.total_minor ELSE 0 END), 0)
+         FROM invoices i
+         JOIN documents d ON d.id = i.document_id
+         LEFT JOIN (SELECT DISTINCT invoice_id FROM invoice_payment_links
+                    WHERE workspace_id = ?1 AND status IN ('PROPOSED', 'APPROVED')) l
+                ON l.invoice_id = i.id
+         WHERE d.workspace_id = ?1
+         GROUP BY i.currency
+         ORDER BY i.currency",
+    )?;
+    let rows = stmt.query_map([workspace_id], |r| {
+        Ok(InvoiceCurrencySummary {
+            currency: r.get(0)?,
+            invoice_count: r.get(1)?,
+            total_minor: r.get(2)?,
+            unmatched_count: r.get(3)?,
+            unmatched_total_minor: r.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+#[cfg(test)]
+mod invoice_summary_tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn test_invoice_summary_counts_by_currency_and_tracks_unmatched() {
+        let db = Database::open_in_memory().unwrap();
+        db.create_workspace("ws", "WS", "USD", &[1u8; 16], &[2u8; 32]).unwrap();
+        let c = db.conn_ref();
+        for (doc, inv, cur, total) in [("d1", "i1", "USD", 10_000i64), ("d2", "i2", "USD", 2_500), ("d3", "i3", "INR", 700_000)] {
+            c.execute(
+                "INSERT INTO documents (id, workspace_id, file_name, file_size_bytes, sha256, doc_type, status, imported_at)
+                 VALUES (?1, 'ws', ?1, 1, ?1, 'INVOICE', 'READY', '2026-01-01')",
+                [doc],
+            ).unwrap();
+            c.execute(
+                "INSERT INTO invoices (id, document_id, vendor_name, currency, total_minor) VALUES (?1, ?2, 'V', ?3, ?4)",
+                rusqlite::params![inv, doc, cur, total],
+            ).unwrap();
+        }
+        c.execute(
+            "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+             VALUES ('t1', 'ws', '2026-01-02', 'PAY', -10000, 'USD', 'UNREVIEWED')",
+            [],
+        ).unwrap();
+        c.execute(
+            "INSERT INTO invoice_payment_links (id, workspace_id, invoice_id, transaction_id, matched_amount_minor, confidence_score, match_type, explanation, status, created_at)
+             VALUES ('l1', 'ws', 'i1', 't1', 10000, 1.0, 'EXACT', 'x', 'APPROVED', '2026-01-02')",
+            [],
+        ).unwrap();
+        let s = invoice_summary(c, "ws").unwrap();
+        assert_eq!(s.len(), 2);
+        let usd = &s[1];
+        assert_eq!((usd.currency.as_str(), usd.invoice_count, usd.total_minor), ("USD", 2, 12_500));
+        assert_eq!((usd.unmatched_count, usd.unmatched_total_minor), (1, 2_500));
+        let inr = &s[0];
+        assert_eq!((inr.currency.as_str(), inr.invoice_count, inr.unmatched_count), ("INR", 1, 1));
     }
 }

@@ -1,31 +1,38 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Send, Paperclip, CheckCircle2, AlertCircle } from "lucide-react";
 import { ChatMessage } from "../lib/types";
 
 interface ChatWorkspaceProps {
   messages: ChatMessage[];
   onSendMessage: (query: string) => Promise<void>;
+  modelLabel: string;
   isLoading: boolean;
   onSelectCitation: (citation: string) => void;
   onNavigateToTab: (tab: "documents" | "review" | "reports") => void;
-  onIngestFile: (filePath: string) => Promise<void>;
+  onPickFiles: () => void;
   errorMessage: string | null;
   suggestions: string[];
 }
 
+/** "tx:3f9a…-uuid" becomes "Transaction 3f9a1c2d". The full reference stays in the tooltip. */
+const citationLabel = (cite: string): string => {
+  const [kind, id = ""] = cite.split(":");
+  const names: Record<string, string> = { tx: "Transaction", inv: "Invoice", doc: "Document" };
+  return `${names[kind] ?? kind} ${id.slice(0, 8)}`;
+};
+
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   messages,
   onSendMessage,
+  modelLabel,
   isLoading,
   onSelectCitation,
   onNavigateToTab: _onNavigateToTab,
-  onIngestFile,
+  onPickFiles,
   errorMessage,
   suggestions,
 }) => {
   const [inputText, setInputText] = useState("");
-  const [showAttachModal, setShowAttachModal] = useState(false);
-  const [attachPath, setAttachPath] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -48,13 +55,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     }
   };
 
-  const handleAttachSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!attachPath.trim()) return;
-    onIngestFile(attachPath.trim());
-    setAttachPath("");
-    setShowAttachModal(false);
-  };
+
 
   const handleChipClick = (suggestion: string) => {
     onSendMessage(suggestion);
@@ -102,9 +103,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <div className="chat-empty-hero-container">
           <div className="chat-hero-content">
             <div className="hero-greeting-block">
-              <h1 className="hero-greeting-title">SAAR Financial Workspace</h1>
+              <h1 className="hero-greeting-title">Ask about your records</h1>
               <p className="hero-greeting-subtitle">
-                Private, local-first intelligence operating directly over your encrypted ledger records via Qwen2.5-3B.
+                Figures are calculated from your imported documents and bank rows. Everything stays on this computer.
               </p>
             </div>
 
@@ -114,8 +115,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button
                   type="button"
                   className="composer-attach-btn"
-                  onClick={() => setShowAttachModal(true)}
-                  title="Ingest invoice, receipt, or bank statement"
+                  onClick={onPickFiles}
+                  title="Import invoices, receipts or bank statements"
                 >
                   <Paperclip size={16} />
                 </button>
@@ -141,7 +142,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               </div>
               <div className="composer-footer-row">
                 <span className="composer-meta-text">
-                  Qwen2.5-3B · CPU AVX2 · Zero cloud telemetry · Local SQLite
+                  Verified answers are calculated from your records. Text written by {modelLabel} is marked as not verified.
                 </span>
               </div>
             </div>
@@ -194,7 +195,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 onClick={() => onSelectCitation(cite)}
                                 title={`Inspect source evidence for ${cite}`}
                               >
-                                <span>[{cite}]</span>
+                                <span>{citationLabel(cite)}</span>
                               </button>
                             ))}
                           </div>
@@ -241,7 +242,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <span className="thinking-dot" />
                       <span className="thinking-dot" />
                       <span className="thinking-label">
-                        Reasoning over local SQLite ledger via Qwen2.5-3B...
+                        Working on it...
                       </span>
                     </div>
                   </div>
@@ -259,8 +260,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button
                   type="button"
                   className="composer-attach-btn"
-                  onClick={() => setShowAttachModal(true)}
-                  title="Ingest invoice, receipt, or bank statement"
+                  onClick={onPickFiles}
+                  title="Import invoices, receipts or bank statements"
                 >
                   <Paperclip size={16} />
                 </button>
@@ -288,51 +289,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         </div>
       )}
 
-      {/* Ingest File Modal */}
-      {showAttachModal && (
-        <div className="modal-backdrop" onClick={() => setShowAttachModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Ingest Document into Workspace</h3>
-              <button
-                className="modal-close-btn"
-                onClick={() => setShowAttachModal(false)}
-              >
-                <X size={15} />
-              </button>
-            </div>
-            <form onSubmit={handleAttachSubmit} className="modal-form">
-              <p className="modal-desc">
-                Provide an absolute path to a bank statement (CSV), invoice (PDF), or scanned receipt (PNG/JPG).
-              </p>
-              <input
-                type="text"
-                className="modal-input"
-                placeholder="Absolute path to a CSV, PDF, PNG or JPG file"
-                value={attachPath}
-                onChange={(e) => setAttachPath(e.target.value)}
-                autoFocus
-              />
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowAttachModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={!attachPath.trim()}
-                >
-                  Ingest & Encrypt
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

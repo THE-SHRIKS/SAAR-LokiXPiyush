@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { baseName, isSupportedImport, listenForDroppedFiles, pickImportFiles } from "./lib/files";
 import {
   SystemStatus,
   WorkspaceInfo,
@@ -9,6 +10,7 @@ import {
   ProposedLink,
   FinancialAnomaly,
   FinancialSummary,
+  InvoiceCurrencySummary,
   CategoryProposal,
   SearchResult,
   DocumentPreview,
@@ -29,9 +31,10 @@ import { DocumentsView } from "./components/DocumentsView";
 import { ReviewView } from "./components/ReviewView";
 import { ReportsView } from "./components/ReportsView";
 import { SecurityView } from "./components/SecurityView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export const App: React.FC = () => {
-  // Theme state: "dark" (#111844 canvas) or "light" (#EAE0CF warm linen canvas)
+  // Theme state: "dark" or "light"
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     return (localStorage.getItem("saar_theme") as "dark" | "light") || "dark";
   });
@@ -43,6 +46,25 @@ export const App: React.FC = () => {
       return next;
     });
   };
+
+  // The sidebar can be closed; the choice is remembered.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("saar_sidebar") === "closed";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      try {
+        localStorage.setItem("saar_sidebar", prev ? "open" : "closed");
+      } catch {
+        /* storage unavailable: the choice just is not remembered */
+      }
+      return !prev;
+    });
+  }, []);
 
   // Navigation & Core State
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("chat");
@@ -66,6 +88,7 @@ export const App: React.FC = () => {
   const [reconciliationLinks, setReconciliationLinks] = useState<ProposedLink[]>([]);
   const [anomalies, setAnomalies] = useState<FinancialAnomaly[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [invoiceSummary, setInvoiceSummary] = useState<InvoiceCurrencySummary[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEventRecord[]>([]);
   const [reportExports, setReportExports] = useState<ExportResult[]>([]);
   const [proposals, setProposals] = useState<Record<string, CategoryProposal>>({});
@@ -84,6 +107,8 @@ export const App: React.FC = () => {
 
   // Operational Action States
   const [isImporting, setIsImporting] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const isImportingRef = useRef(false);
   const [importMessage, setImportMessage] = useState<{
     text: string;
     type: "success" | "error" | "info";
@@ -115,10 +140,41 @@ export const App: React.FC = () => {
         e.preventDefault();
         handleNewChat();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [workspace]);
+
+  useEffect(() => {
+    isImportingRef.current = isImporting;
+  }, [isImporting]);
+
+  // Files dropped anywhere on the window are imported once a workspace is unlocked.
+  const importPathsRef = useRef<(paths: string[]) => Promise<void>>(async () => {});
+  useEffect(() => {
+    if (!workspace) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    listenForDroppedFiles(setIsDraggingFiles, (paths) => void importPathsRef.current(paths))
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch((err) => console.error("Drag and drop is unavailable:", err));
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [workspace]);
+
+  // Opening a data screen always shows the current records.
+  useEffect(() => {
+    if (workspace && activeTab !== "chat") void refreshWorkspaceData();
+  }, [activeTab]);
 
   const activeThread = useMemo(() => {
     return threads.find((t) => t.id === activeThreadId) || null;
@@ -171,25 +227,27 @@ export const App: React.FC = () => {
   }, [workspace, loadThreads, loadThreadMessages]);
 
   const refreshWorkspaceData = async (baseCurrency: string = workspace?.baseCurrency ?? "USD") => {
-    try {
-      const [docs, txs, links, anoms, summary, logs, exports] = await Promise.all([
-        SaarApi.listDocuments(),
-        SaarApi.listTransactions(),
-        SaarApi.listReconciliationLinks(),
-        SaarApi.listAnomalies(),
-        SaarApi.getFinancialSummary(baseCurrency),
-        SaarApi.listAuditLog(),
-        SaarApi.listReportExports(),
-      ]);
-      setDocuments(docs);
-      setTransactions(txs);
-      setReconciliationLinks(links);
-      setAnomalies(anoms);
-      setFinancialSummary(summary);
-      setAuditLogs(logs);
-      setReportExports(exports);
-    } catch (err) {
-      console.error("Refresh workspace data error:", err);
+    // Each list loads on its own, so one failing call cannot leave every other screen stale.
+    const [docs, txs, links, anoms, summary, logs, exports, invoices] = await Promise.allSettled([
+      SaarApi.listDocuments(),
+      SaarApi.listTransactions(),
+      SaarApi.listReconciliationLinks(),
+      SaarApi.listAnomalies(),
+      SaarApi.getFinancialSummary(baseCurrency),
+      SaarApi.listAuditLog(),
+      SaarApi.listReportExports(),
+      SaarApi.getInvoiceSummary(),
+    ]);
+    if (docs.status === "fulfilled") setDocuments(docs.value);
+    if (txs.status === "fulfilled") setTransactions(txs.value);
+    if (links.status === "fulfilled") setReconciliationLinks(links.value);
+    if (anoms.status === "fulfilled") setAnomalies(anoms.value);
+    if (summary.status === "fulfilled") setFinancialSummary(summary.value);
+    if (logs.status === "fulfilled") setAuditLogs(logs.value);
+    if (exports.status === "fulfilled") setReportExports(exports.value);
+    if (invoices.status === "fulfilled") setInvoiceSummary(invoices.value);
+    for (const r of [docs, txs, links, anoms, summary, logs, exports, invoices]) {
+      if (r.status === "rejected") console.error("Refresh workspace data error:", r.reason);
     }
   };
 
@@ -221,6 +279,8 @@ export const App: React.FC = () => {
 
   const handleLockWorkspace = async () => {
     await SaarApi.lockWorkspace();
+    // The unlock screen lists workspaces from this state, so refresh it (for example after a restore).
+    SaarApi.listWorkspaces().then(setWorkspaces).catch(console.error);
     setWorkspace(null);
     setThreads([]);
     setActiveThreadId(null);
@@ -371,38 +431,99 @@ export const App: React.FC = () => {
     }
   };
 
-  // Ingestion Handler
+  // Ingestion
+  type IngestOutcome = { kind: "ok" | "duplicate" | "failed"; text: string; documentId?: string };
+
+  const ingestOne = async (filePath: string): Promise<IngestOutcome> => {
+    try {
+      const res = await SaarApi.ingestFile(filePath.trim());
+      if (res.type === "success") {
+        return {
+          kind: "ok",
+          documentId: res.documentId,
+          text: `Successfully ingested "${res.fileName}" (${res.docType}) — ${res.recordsExtracted} records extracted.`,
+        };
+      }
+      return {
+        kind: "duplicate",
+        text: `Deduplication: "${res.fileName}" already stored in encrypted workspace (SHA-256: ${res.sha256.substring(0, 16)}...).`,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { kind: "failed", text: `Ingestion failed: ${msg}` };
+    }
+  };
+
   const handleIngestFile = async (filePath: string) => {
     if (!filePath.trim()) return;
     setIsImporting(true);
     setImportMessage({ text: `Ingesting document from ${filePath}...`, type: "info" });
+    const outcome = await ingestOne(filePath);
+    setImportMessage({
+      text: outcome.text,
+      type: outcome.kind === "ok" ? "success" : outcome.kind === "duplicate" ? "info" : "error",
+    });
+    // A failed import is kept as a FAILED record; show it now, not after the next unlock.
+    await refreshWorkspaceData();
+    if (outcome.documentId) await loadDocumentDetails(outcome.documentId);
+    setIsImporting(false);
+  };
+
+  // Imports files chosen in the system dialog or dropped on the window, one after another.
+  const handleImportPaths = async (paths: string[]) => {
+    if (isImportingRef.current) return;
+    setActiveTab("documents");
+    const supported = paths.filter(isSupportedImport);
+    if (supported.length === 0) {
+      setImportMessage({ text: "SAAR imports PDF, PNG, JPG and CSV files. None of the dropped files can be imported.", type: "error" });
+      return;
+    }
+    if (paths.length === 1) {
+      await handleIngestFile(supported[0]);
+      return;
+    }
+    setIsImporting(true);
+    let imported = 0;
+    let duplicates = 0;
+    const failures: string[] = [];
+    let lastDocumentId: string | undefined;
+    for (let i = 0; i < supported.length; i++) {
+      setImportMessage({ text: `Importing ${i + 1} of ${supported.length}: ${baseName(supported[i])}`, type: "info" });
+      const outcome = await ingestOne(supported[i]);
+      if (outcome.kind === "ok") {
+        imported++;
+        lastDocumentId = outcome.documentId;
+      } else if (outcome.kind === "duplicate") duplicates++;
+      else failures.push(`${baseName(supported[i])}: ${outcome.text.replace("Ingestion failed: ", "")}`);
+      await refreshWorkspaceData();
+    }
+    const skipped = paths.length - supported.length;
+    const parts = [`Imported ${imported} of ${supported.length} files`];
+    if (duplicates) parts.push(`${duplicates} already stored`);
+    if (skipped) parts.push(`${skipped} unsupported skipped`);
+    if (failures.length) parts.push(`${failures.length} failed (${failures.join("; ")})`);
+    setImportMessage({ text: `${parts.join(", ")}.`, type: failures.length ? "error" : "success" });
+    if (lastDocumentId) await loadDocumentDetails(lastDocumentId);
+    setIsImporting(false);
+  };
+
+  importPathsRef.current = handleImportPaths;
+
+  const handlePickFiles = async () => {
     try {
-      const res = await SaarApi.ingestFile(filePath.trim());
-      if (res.type === "success") {
-        setImportMessage({
-          text: `Successfully ingested "${res.fileName}" (${res.docType}) — ${res.recordsExtracted} records extracted.`,
-          type: "success",
-        });
-        await refreshWorkspaceData();
-        await loadDocumentDetails(res.documentId);
-      } else {
-        setImportMessage({
-          text: `Deduplication: "${res.fileName}" already stored in encrypted workspace (SHA-256: ${res.sha256.substring(0, 16)}...).`,
-          type: "info",
-        });
-      }
+      const paths = await pickImportFiles();
+      if (paths.length) await handleImportPaths(paths);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setImportMessage({ text: `Ingestion failed: ${msg}`, type: "error" });
-    } finally {
-      setIsImporting(false);
+      setActiveTab("documents");
+      setImportMessage({ text: `Could not open the file dialog: ${msg}`, type: "error" });
     }
   };
 
   // Reconciliation Handlers
   const handleRunReconciliation = async () => {
     setIsReconciling(true);
-    setReviewMessage("Executing deterministic matching rules & anomaly detection...");
+    setReviewMessage("Matching documents to bank rows and checking for anomalies...");
     try {
       const res = await SaarApi.runReconciliation();
       setReconciliationLinks(res.links);
@@ -523,9 +644,10 @@ export const App: React.FC = () => {
     try {
       const manifest = await SaarApi.restoreEncryptedBackup(restoreArchivePath, restorePassphrase);
       setRestoreFeedback(
-        `Restored archive successfully! Workspace: ${manifest.workspaceName}, Blobs: ${manifest.blobCount}`
+        `Restored archive successfully! Workspace: ${manifest.workspaceName}, Blobs: ${manifest.blobCount}. ` +
+          "It now appears on the unlock screen; unlock it with its own workspace passphrase."
       );
-      await refreshWorkspaceData();
+      setWorkspaces(await SaarApi.listWorkspaces());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setRestoreFeedback(`Restore failed: ${msg}`);
@@ -573,22 +695,22 @@ export const App: React.FC = () => {
   // Nothing is shown for an empty category, and the model answers every question itself.
   const chatSuggestions = useMemo(() => {
     const suggestions: string[] = [];
-    if (documents.length > 0) {
-      suggestions.push(`Summarize the ${documents.length} imported documents`);
-    }
-    if (anomalies.length > 0) {
-      suggestions.push(
-        `Explain the ${anomalies.length} flagged ${anomalies.length === 1 ? "anomaly" : "anomalies"}`,
-      );
-    }
-    if (reconciliationLinks.length > 0) {
-      suggestions.push(`Which ${reconciliationLinks.length} proposed matches need review, and why?`);
-    }
+    // Each suggestion maps to an operation that SAAR computes from the records and marks verified.
     if (transactions.length > 0) {
-      suggestions.push("What were my largest expenses in the recorded period?");
+      suggestions.push("What are my total expenses?");
+      suggestions.push("What are my largest expenses?");
     }
     if (financialSummary) {
-      suggestions.push(`What is my net savings in ${workspace?.baseCurrency ?? "USD"}?`);
+      suggestions.push(`What is my net cash flow in ${workspace?.baseCurrency ?? "USD"}?`);
+    }
+    if (anomalies.length > 0) {
+      suggestions.push("Are there any duplicate payments?");
+    }
+    if (reconciliationLinks.length > 0 || transactions.length > 0) {
+      suggestions.push("Which payments have no matching invoice?");
+    }
+    if (documents.length > 0) {
+      suggestions.push("How many documents are in this workspace?");
     }
     return suggestions.slice(0, 4);
   }, [documents, anomalies, reconciliationLinks, transactions, financialSummary, workspace]);
@@ -596,14 +718,14 @@ export const App: React.FC = () => {
   // Header Title
   const activeTabTitle = useMemo(() => {
     if (activeTab === "chat") {
-      return activeThread?.title || "Conversation Workspace";
+      return activeThread?.title || "New conversation";
     }
     const titles: Record<WorkspaceTab, string> = {
       chat: "Conversation",
-      documents: "Document Archive & Ingestion",
-      review: "Reconciliation & Ledger Postings",
-      reports: "Deterministic Financial Reports",
-      security: "Vault Security & Cryptography",
+      documents: "Documents",
+      review: "Reconciliation",
+      reports: "Reports",
+      security: "Security",
     };
     return titles[activeTab];
   }, [activeTab, activeThread]);
@@ -611,7 +733,15 @@ export const App: React.FC = () => {
   const hasInspectorContent = Boolean(selectedDocDetails || selectedTx || selectedLink);
 
   return (
-    <div className="saar-app-root" data-theme={theme}>
+    <div className={`saar-app-root ${sidebarCollapsed ? "sidebar-collapsed" : ""}`} data-theme={theme}>
+      {isDraggingFiles && (
+        <div className="drop-overlay" aria-hidden="true">
+          <div className="drop-overlay-card">
+            <strong>Drop to import</strong>
+            <span>PDF, PNG, JPG or CSV</span>
+          </div>
+        </div>
+      )}
       {!workspace ? (
         <UnlockScreen
           status={status}
@@ -626,6 +756,7 @@ export const App: React.FC = () => {
         <div className="claude-desktop-shell">
           {/* 1. Left Sidebar Navigation (260px) */}
           <Sidebar
+            onCollapse={toggleSidebar}
             workspace={workspace}
             activeTab={activeTab}
             onSelectTab={setActiveTab}
@@ -646,6 +777,8 @@ export const App: React.FC = () => {
           <div className="claude-main-viewport">
             {/* Top Header Bar */}
             <HeaderBar
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={toggleSidebar}
               workspace={workspace}
               activeTabTitle={activeTabTitle}
               searchQuery={searchQuery}
@@ -658,15 +791,18 @@ export const App: React.FC = () => {
               hasInspectorContent={hasInspectorContent}
               theme={theme}
               onToggleTheme={handleToggleTheme}
+              modelLabel={status?.llmModelLabel ?? "Local model"}
             />
 
             {/* Split Viewport: Central Stage + Contextual Evidence Inspector Drawer */}
             <div className="claude-split-body">
               <main className="claude-central-stage">
+                <ErrorBoundary key={activeTab} label={activeTabTitle}>
                 {activeTab === "chat" && (
                   <ChatWorkspace
                     messages={activeThread?.messages || []}
                     onSendMessage={handleSendMessage}
+                    modelLabel={status?.llmModelLabel ?? "the local model"}
                     isLoading={isChatLoading}
                     errorMessage={chatError}
                     suggestions={chatSuggestions}
@@ -676,7 +812,7 @@ export const App: React.FC = () => {
                       else if (tab === "review") setActiveTab("review");
                       else if (tab === "reports") setActiveTab("reports");
                     }}
-                    onIngestFile={handleIngestFile}
+                    onPickFiles={handlePickFiles}
                   />
                 )}
 
@@ -686,6 +822,8 @@ export const App: React.FC = () => {
                     selectedDocumentId={selectedDocDetails?.document.id || null}
                     onSelectDocument={loadDocumentDetails}
                     onIngestFile={handleIngestFile}
+                    onPickFiles={handlePickFiles}
+                    isDraggingFiles={isDraggingFiles}
                     isImporting={isImporting}
                     importMessage={importMessage}
                   />
@@ -728,6 +866,7 @@ export const App: React.FC = () => {
                 {activeTab === "reports" && (
                   <ReportsView
                     financialSummary={financialSummary}
+                    invoiceSummary={invoiceSummary}
                     reportExports={reportExports}
                     isExporting={isExporting}
                     exportFeedback={exportFeedback}
@@ -752,6 +891,7 @@ export const App: React.FC = () => {
                     onRestoreBackup={handleRestoreBackup}
                   />
                 )}
+                </ErrorBoundary>
               </main>
 
               {/* 3. Right Contextual Evidence Drawer */}

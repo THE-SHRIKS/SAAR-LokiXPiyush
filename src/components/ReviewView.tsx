@@ -12,6 +12,7 @@ import {
   Database,
 } from "lucide-react";
 import {
+  CurrencyCode,
   ProposedLink,
   FinancialAnomaly,
   TransactionRecord,
@@ -37,6 +38,16 @@ interface ReviewViewProps {
   onSelectTransaction: (tx: TransactionRecord) => void;
   onSelectLink: (link: ProposedLink) => void;
 }
+
+const ANOMALY_LABELS: Record<string, string> = {
+  DUPLICATE_INVOICE: "Duplicate invoice",
+  POTENTIAL_DUPLICATE_PAYMENT: "Possible duplicate payment",
+  LARGE_UNMATCHED: "Large payment without a document",
+};
+
+/** Readable name for an anomaly code; unknown codes are shown as sentence-case words. */
+const anomalyLabel = (code: string): string =>
+  ANOMALY_LABELS[code] ?? code.charAt(0) + code.slice(1).toLowerCase().replace(/_/g, " ");
 
 export const ReviewView: React.FC<ReviewViewProps> = ({
   reconciliationLinks,
@@ -92,7 +103,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             onClick={() => setSubTab("reconciliation")}
           >
             <GitCompare size={14} />
-            <span>Reconciliation Inbox</span>
+            <span>Matches</span>
             {reconciliationLinks.length > 0 && (
               <span className="tab-pill-count">{reconciliationLinks.length}</span>
             )}
@@ -103,7 +114,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             onClick={() => setSubTab("ledger")}
           >
             <Database size={14} />
-            <span>Ledger Postings</span>
+            <span>Transactions</span>
             <span className="tab-pill-count">{transactions.length}</span>
           </button>
 
@@ -112,7 +123,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             onClick={() => setSubTab("audit")}
           >
             <ShieldCheck size={14} />
-            <span>Immutable Audit Trail</span>
+            <span>Activity log</span>
             <span className="tab-pill-count">{auditLogs.length}</span>
           </button>
         </div>
@@ -124,7 +135,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             disabled={isReconciling}
           >
             <RefreshCw size={13} className={isReconciling ? "spin" : ""} />
-            <span>{isReconciling ? "Executing Matchers..." : "Run Reconciliation"}</span>
+            <span>{isReconciling ? "Matching..." : "Run Reconciliation"}</span>
           </button>
         )}
       </div>
@@ -156,7 +167,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                       <span className={`badge-severity ${anom.severity.toLowerCase()}`}>
                         {anom.severity}
                       </span>
-                      <span className="anomaly-type-code">{anom.anomalyType}</span>
+                      <span className="anomaly-type-code">{anomalyLabel(anom.anomalyType)}</span>
                     </div>
                     <p className="anomaly-description">{anom.description}</p>
                   </div>
@@ -174,9 +185,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
             {reconciliationLinks.length === 0 ? (
               <div className="empty-panel-state">
-                <p>No reconciliation proposals in inbox.</p>
+                <p>No matches to review</p>
                 <span>
-                  Click &ldquo;Run Reconciliation&rdquo; above to match invoices with bank records.
+                  Run reconciliation to match invoices with bank rows.
                 </span>
               </div>
             ) : (
@@ -197,7 +208,10 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                         </span>
                       </div>
                       <div className="match-amount font-mono">
-                        {formatMinorCurrency(link.matchedAmountMinor, "USD")}
+                        {formatMinorCurrency(
+                          link.matchedAmountMinor,
+                          (transactions.find((t) => t.id === link.transactionId)?.currency ?? "USD") as CurrencyCode,
+                        )}
                       </div>
                     </div>
 
@@ -376,7 +390,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
               <span className="table-head-title">
                 Immutable SQLite Audit Trail ({auditLogs.length} events)
               </span>
-              <span className="table-head-subtitle">Append-only cryptographic mutation log</span>
+              <span className="table-head-subtitle">Record of approvals, rejections and other changes</span>
             </div>
 
             <table className="app-data-table">
@@ -385,7 +399,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                   <th>Timestamp</th>
                   <th>Action</th>
                   <th>Target Entity</th>
-                  <th>Cryptographic Evidence Payload</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>

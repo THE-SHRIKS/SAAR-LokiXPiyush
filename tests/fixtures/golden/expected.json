@@ -1,0 +1,484 @@
+{
+  "base_currency": "USD",
+  "by_currency": {
+    "EUR": {
+      "count": 2,
+      "expense_minor": 120000,
+      "income_minor": 9999,
+      "net_minor": -110001
+    },
+    "INR": {
+      "count": 1,
+      "expense_minor": 1500050,
+      "income_minor": 0,
+      "net_minor": -1500050
+    },
+    "JPY": {
+      "count": 1,
+      "expense_minor": 5000,
+      "income_minor": 0,
+      "net_minor": -5000
+    },
+    "USD": {
+      "count": 101,
+      "expense_minor": 10000002410297,
+      "income_minor": 1016029,
+      "net_minor": -10000001394268
+    }
+  },
+  "dataset": "bank_golden.csv",
+  "largest_usd_expense_minor": 9999999999999,
+  "malformed_rows_expected_to_be_rejected": 0,
+  "monthly_subscription_pairs_not_flagged": [
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-01-01",
+        "2024-02-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-02-01",
+        "2024-03-01"
+      ],
+      "gap_days": 29,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-03-01",
+        "2024-04-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-04-01",
+        "2024-05-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-05-01",
+        "2024-06-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-06-01",
+        "2024-07-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-07-01",
+        "2024-08-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-08-01",
+        "2024-09-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-09-01",
+        "2024-10-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-10-01",
+        "2024-11-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-11-01",
+        "2024-12-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2024-12-01",
+        "2025-01-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-01-01",
+        "2025-02-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-02-01",
+        "2025-03-01"
+      ],
+      "gap_days": 28,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-03-01",
+        "2025-04-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-04-01",
+        "2025-05-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-05-01",
+        "2025-06-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-06-01",
+        "2025-07-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-07-01",
+        "2025-08-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-08-01",
+        "2025-09-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-09-01",
+        "2025-10-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-10-01",
+        "2025-11-01"
+      ],
+      "gap_days": 31,
+      "merchant": "cloudhost"
+    },
+    {
+      "amount_minor": 12000,
+      "currency": "USD",
+      "dates": [
+        "2025-11-01",
+        "2025-12-01"
+      ],
+      "gap_days": 30,
+      "merchant": "cloudhost"
+    }
+  ],
+  "potential_duplicate_payments": [
+    {
+      "amount_minor": 74281,
+      "currency": "USD",
+      "dates": [
+        "2026-09-13",
+        "2026-09-25"
+      ],
+      "gap_days": 12,
+      "merchant": "northwind"
+    }
+  ],
+  "synthetic": true,
+  "transaction_count": 105,
+  "usd_monthly": {
+    "2024-01": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-02": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-03": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-04": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-05": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-06": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-07": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-08": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-09": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-10": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-11": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2024-12": {
+      "count": 1,
+      "expense_minor": 12000,
+      "income_minor": 0,
+      "net_minor": -12000
+    },
+    "2025-01": {
+      "count": 3,
+      "expense_minor": 12000,
+      "income_minor": 142631,
+      "net_minor": 130631
+    },
+    "2025-02": {
+      "count": 2,
+      "expense_minor": 80740,
+      "income_minor": 0,
+      "net_minor": -80740
+    },
+    "2025-03": {
+      "count": 2,
+      "expense_minor": 12000,
+      "income_minor": 83362,
+      "net_minor": 71362
+    },
+    "2025-04": {
+      "count": 2,
+      "expense_minor": 85419,
+      "income_minor": 0,
+      "net_minor": -85419
+    },
+    "2025-05": {
+      "count": 4,
+      "expense_minor": 42327,
+      "income_minor": 49169,
+      "net_minor": 6842
+    },
+    "2025-06": {
+      "count": 2,
+      "expense_minor": 59567,
+      "income_minor": 0,
+      "net_minor": -59567
+    },
+    "2025-07": {
+      "count": 7,
+      "expense_minor": 62217,
+      "income_minor": 97961,
+      "net_minor": 35744
+    },
+    "2025-08": {
+      "count": 4,
+      "expense_minor": 83552,
+      "income_minor": 62621,
+      "net_minor": -20931
+    },
+    "2025-09": {
+      "count": 3,
+      "expense_minor": 70030,
+      "income_minor": 0,
+      "net_minor": -70030
+    },
+    "2025-10": {
+      "count": 6,
+      "expense_minor": 169354,
+      "income_minor": 84101,
+      "net_minor": -85253
+    },
+    "2025-11": {
+      "count": 5,
+      "expense_minor": 179680,
+      "income_minor": 13524,
+      "net_minor": -166156
+    },
+    "2025-12": {
+      "count": 5,
+      "expense_minor": 225682,
+      "income_minor": 0,
+      "net_minor": -225682
+    },
+    "2026-01": {
+      "count": 3,
+      "expense_minor": 115638,
+      "income_minor": 18669,
+      "net_minor": -96969
+    },
+    "2026-03": {
+      "count": 5,
+      "expense_minor": 178580,
+      "income_minor": 43782,
+      "net_minor": -134798
+    },
+    "2026-04": {
+      "count": 3,
+      "expense_minor": 0,
+      "income_minor": 90819,
+      "net_minor": 90819
+    },
+    "2026-05": {
+      "count": 4,
+      "expense_minor": 136509,
+      "income_minor": 35295,
+      "net_minor": -101214
+    },
+    "2026-06": {
+      "count": 7,
+      "expense_minor": 10000000117117,
+      "income_minor": 0,
+      "net_minor": -10000000117117
+    },
+    "2026-07": {
+      "count": 4,
+      "expense_minor": 116110,
+      "income_minor": 0,
+      "net_minor": -116110
+    },
+    "2026-08": {
+      "count": 3,
+      "expense_minor": 50896,
+      "income_minor": 119492,
+      "net_minor": 68596
+    },
+    "2026-09": {
+      "count": 6,
+      "expense_minor": 306338,
+      "income_minor": 5000,
+      "net_minor": -301338
+    },
+    "2026-10": {
+      "count": 6,
+      "expense_minor": 107386,
+      "income_minor": 117828,
+      "net_minor": 10442
+    },
+    "2026-11": {
+      "count": 3,
+      "expense_minor": 55155,
+      "income_minor": 51775,
+      "net_minor": -3380
+    }
+  }
+}

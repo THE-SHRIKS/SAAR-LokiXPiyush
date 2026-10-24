@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Lock, Eye, EyeOff, ShieldCheck, ArrowRight, Sun, Moon } from "lucide-react";
 import { SystemStatus, WorkspaceSummary } from "../lib/types";
 
@@ -31,6 +31,15 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
   const hasWorkspaces = workspaces.length > 0;
   const [creating, setCreating] = useState(!hasWorkspaces);
   const [selectedId, setSelectedId] = useState(workspaces[0]?.id ?? "");
+  // The workspace list arrives after the first render on a cold start. Until the user chooses a
+  // mode themselves, follow the list: existing workspaces mean "unlock", none means "create".
+  const userChoseMode = useRef(false);
+  useEffect(() => {
+    if (!userChoseMode.current) setCreating(workspaces.length === 0);
+    setSelectedId((current) =>
+      workspaces.some((w) => w.id === current) ? current : (workspaces[0]?.id ?? ""),
+    );
+  }, [workspaces]);
   const [displayName, setDisplayName] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [passphrase, setPassphrase] = useState("");
@@ -85,13 +94,13 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
         <div className="unlock-brand-header">
           <div className="unlock-monogram">S</div>
           <h1 className="unlock-app-title">SAAR</h1>
-          <p className="unlock-app-tagline">Sovereign Financial Intelligence</p>
+          <p className="unlock-app-tagline">Local financial workspace</p>
         </div>
 
         {/* Security Assurance Tag */}
         <div className="unlock-assurance-pill">
           <ShieldCheck size={13} className="pill-icon" />
-          <span>Air-Gapped · Local Hardware · Zero Cloud Egress</span>
+          <span>All processing happens on this computer</span>
         </div>
 
         <form onSubmit={handleSubmit} className="unlock-form">
@@ -109,7 +118,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
               >
                 {workspaces.map((ws) => (
                   <option key={ws.id} value={ws.id}>
-                    {ws.displayName} ({ws.baseCurrency})
+                    {ws.displayName} · created {ws.createdAt.slice(0, 10)}
                   </option>
                 ))}
               </select>
@@ -224,6 +233,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
                 type="button"
                 className="quick-demo-btn"
                 onClick={() => {
+                  userChoseMode.current = true;
                   setLocalError(null);
                   setCreating(!creating);
                 }}
@@ -240,7 +250,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
           <div className="crypto-badges-row">
             <span className="crypto-badge">Argon2id (64 MiB, 3 passes)</span>
             <span className="crypto-separator">·</span>
-            <span className="crypto-badge">SQLCipher AES-256-GCM</span>
+            <span className="crypto-badge">SQLCipher AES-256</span>
           </div>
           <div className="runtime-meta-row">
             <span>Runtime {status?.appVersion ?? "—"}</span>

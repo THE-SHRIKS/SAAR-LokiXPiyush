@@ -73,7 +73,7 @@ The backend and frontend were audited to eradicate false-positive indicators:
       false
   };
   ```
-- If the model weights (`Qwen2.5-3B-Instruct-Q3_K_M.gguf`) are missing, `llm_ready` is `false`, and `llmModelId` is `"none"`.
+- If the model weights (`Qwen3-4B-Q4_K_M.gguf`) are missing, `llm_ready` is `false`, and `llmModelId` is `"none"`.
 - In the frontend (`src/lib/api.ts`), the browser preview mode explicitly identifies itself as `platform: "browser-preview"`, `ocrReady: false`, `llmReady: false`, and `databaseEncrypted: false`.
 
 ### 3.3 Sidecar Resolution on Windows

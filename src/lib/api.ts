@@ -18,6 +18,7 @@ import {
   ProposedLink,
   FinancialAnomaly,
   FinancialSummary,
+  InvoiceCurrencySummary,
   ReconciliationResult,
   GroundedChatResponse,
   CategoryProposal,
@@ -120,6 +121,10 @@ export class SaarApi {
     return call<AuditEventRecord[]>("list_audit_log");
   }
 
+  static getInvoiceSummary(): Promise<InvoiceCurrencySummary[]> {
+    return call<InvoiceCurrencySummary[]>("get_invoice_summary");
+  }
+
   static getFinancialSummary(currency: string): Promise<FinancialSummary> {
     return call<FinancialSummary>("get_financial_summary", { currency });
   }
@@ -182,15 +187,7 @@ export class SaarApi {
     });
   }
 
-  static restoreEncryptedBackup(
-    archivePath: string,
-    passphrase: string,
-    targetDataDir?: string,
-  ): Promise<BackupManifest> {
-    return call<BackupManifest>("restore_encrypted_backup", {
-      archivePath,
-      passphrase,
-      targetDataDir: targetDataDir || null,
-    });
+  static restoreEncryptedBackup(archivePath: string, passphrase: string): Promise<BackupManifest> {
+    return call<BackupManifest>("restore_encrypted_backup", { archivePath, passphrase });
   }
 }
