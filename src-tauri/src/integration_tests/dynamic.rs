@@ -169,3 +169,36 @@ fn results_follow_the_data() {
         .unwrap();
     assert!(audited >= 1, "the correction must leave an audit record");
 }
+
+#[test]
+#[ignore = "runs the OCR worker on a corrupted file"]
+fn a_failed_import_is_marked_failed_immediately_and_leaves_no_partial_records() {
+    let corrupted = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tests/fixtures/golden/bills/corrupted_invoice.pdf");
+    assert!(corrupted.exists(), "fixture missing");
+
+    let mut h = Harness::new("ws-fail");
+    let result = DocumentOrchestrator::ingest_file(&mut h.db, &h.blobs, &h.ocr, &h.master, "ws-fail", &corrupted, "USD");
+    assert!(result.is_err(), "a corrupted PDF must be rejected");
+
+    let conn = h.db.conn_ref();
+    let status: String = conn
+        .query_row("SELECT status FROM documents WHERE workspace_id = 'ws-fail'", [], |r| r.get(0))
+        .expect("the failed import is recorded");
+    assert_eq!(status, "FAILED", "not left PROCESSING until the next startup");
+
+    let invoices: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM invoices i JOIN documents d ON d.id = i.document_id WHERE d.workspace_id = 'ws-fail'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(invoices, 0, "no partial invoice record");
+    let audited: i64 = conn
+        .query_row("SELECT COUNT(*) FROM audit_log WHERE workspace_id = 'ws-fail' AND action = 'INGEST_FAILED'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(audited, 1, "the failure is audited");
+}

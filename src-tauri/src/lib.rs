@@ -19,8 +19,15 @@ use state::AppState;
 pub fn run() {
     // Application data root. No database is opened here: each workspace has its own encrypted
     // database and is opened only after its passphrase is verified (see `unlock_workspace`).
-    let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
-        .map(|dirs| dirs.data_local_dir().to_path_buf())
+    // SAAR_DATA_DIR relocates all workspace data (portable installs, and isolated test runs that
+    // must not touch the user's real data folder).
+    let data_dir = std::env::var_os("SAAR_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .filter(|p| !p.as_os_str().is_empty())
+        .or_else(|| {
+            directories::ProjectDirs::from("com", "theshriks", "saar")
+                .map(|dirs| dirs.data_local_dir().to_path_buf())
+        })
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let _ = std::fs::create_dir_all(&data_dir);
 

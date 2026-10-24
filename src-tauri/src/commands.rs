@@ -69,6 +69,8 @@ pub struct DocumentDetails {
     pub fields: Vec<NormalizedField>,
     pub line_items: Vec<NormalizedLineItem>,
     pub invoice_total_minor: Option<i64>,
+    /// Currency of the extracted invoice, so amounts can be shown with their currency.
+    pub currency: Option<String>,
 }
 
 #[tauri::command]
@@ -418,16 +420,18 @@ pub fn get_document_details(
 
     // 3. Fetch invoice and line items
     let mut invoice_total_minor = None;
+    let mut currency = None;
     let mut line_items = Vec::new();
 
-    let inv_opt: Result<(String, i64), _> = db.conn_ref().query_row(
-        "SELECT id, total_minor FROM invoices WHERE document_id = ?1 LIMIT 1;",
+    let inv_opt: Result<(String, i64, String), _> = db.conn_ref().query_row(
+        "SELECT id, total_minor, currency FROM invoices WHERE document_id = ?1 LIMIT 1;",
         params![document_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     );
 
-    if let Ok((inv_id, total)) = inv_opt {
+    if let Ok((inv_id, total, cur)) = inv_opt {
         invoice_total_minor = Some(total);
+        currency = Some(cur);
 
         let mut item_stmt = db
             .conn_ref()
@@ -453,6 +457,7 @@ pub fn get_document_details(
         fields,
         line_items,
         invoice_total_minor,
+        currency,
     })
 }
 
@@ -1204,11 +1209,9 @@ pub fn export_reconciliation_report(
     let target_path = match destination_path {
         Some(p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
         _ => {
-            let data_dir = directories::ProjectDirs::from("com", "theshriks", "saar")
-                .map(|d| d.data_local_dir().to_path_buf())
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            data_dir
+            state
+                .data_dir
                 .join("exports")
                 .join(format!("saar_reconciliation_{}.{}", timestamp, ext))
         }

@@ -64,7 +64,34 @@ fn ipc(webview: &WebviewWindow<MockRuntime>, cmd: &str, body: Value) -> Result<V
             invoke_key: INVOKE_KEY.to_string(),
         },
     )
-    .map(|b| b.deserialize::<Value>().unwrap_or(Value::Null))
+    .map(|b| {
+        let value = b.deserialize::<Value>().unwrap_or(Value::Null);
+        // The frontend types are camelCase; a snake_case key means a field the UI cannot read.
+        let mut bad = Vec::new();
+        snake_case_keys(&value, cmd, &mut bad);
+        if !bad.is_empty() {
+            KEY_VIOLATIONS.lock().unwrap().extend(bad.into_iter().take(3));
+        }
+        value
+    })
+}
+
+static KEY_VIOLATIONS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+fn snake_case_keys(v: &Value, path: &str, out: &mut Vec<String>) {
+    match v {
+        Value::Object(map) => {
+            for (k, val) in map {
+                let here = format!("{}.{}", path, k);
+                if k.contains('_') {
+                    out.push(here.clone());
+                }
+                snake_case_keys(val, &here, out);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|x| snake_case_keys(x, path, out)),
+        _ => {}
+    }
 }
 
 fn build_app(data_dir: &Path, with_model: bool) -> (tauri::App<MockRuntime>, WebviewWindow<MockRuntime>) {
@@ -221,6 +248,28 @@ fn e2e_corpus_through_command_layer() {
         "INR transactions are reported as excluded, not dropped silently",
     );
 
+    // Commands behind the evidence panel, search and audit views: exercised so their payload
+    // shapes are checked against the frontend contract as well.
+    // An invoice PDF (a bank statement has transactions, not extracted fields).
+    let first_doc = docs
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["docType"] == "PDF")
+        .expect("an invoice PDF")["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let details = ipc(&wv, "get_document_details", json!({"documentId": first_doc})).unwrap();
+    r.check(
+        details["fields"].as_array().map_or(false, |f| !f.is_empty()) && details["fields"][0]["fieldKey"].is_string(),
+        "document details expose extracted fields with camelCase names",
+    );
+    r.check(ipc(&wv, "get_document_preview", json!({"documentId": first_doc})).is_ok(), "document preview loads");
+    r.check(ipc(&wv, "search_workspace", json!({"query": "RPW"})).is_ok(), "workspace search runs");
+    r.check(ipc(&wv, "list_audit_log", json!({})).is_ok(), "audit log loads");
+    r.check(ipc(&wv, "list_report_exports", json!({})).is_ok(), "export history loads");
+
     // ---- 5. Chat: verified answers equal the ledger, others are never verified
     r.section("5. Chat");
     let thread = ipc(&wv, "create_chat_thread", json!({"title": null})).unwrap()["id"].as_str().unwrap().to_string();
@@ -325,6 +374,13 @@ fn e2e_corpus_through_command_layer() {
     let tampered_path = root.join("tampered.saar");
     fs::write(&tampered_path, tampered).unwrap();
     r.check(ipc(&wv_b, "restore_encrypted_backup", json!({"archivePath": tampered_path.to_string_lossy(), "passphrase": BACKUP_PASSPHRASE})).is_err(), "a tampered archive is rejected");
+
+    // ---- Frontend contract: no command returned a snake_case key
+    r.section("Frontend contract");
+    let mut bad = KEY_VIOLATIONS.lock().unwrap().clone();
+    bad.sort();
+    bad.dedup();
+    r.check(bad.is_empty(), format!("every command response uses the camelCase keys the frontend reads (violations: {:?})", bad));
 
     // ---- 9. Disk check on both installations
     r.section("9. Disk check");

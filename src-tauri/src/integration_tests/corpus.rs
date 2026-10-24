@@ -68,16 +68,16 @@ fn run_workspace(workspace: &str) -> Outcome {
     let mut compared = 0;
     for inv in ledger["invoices"].as_array().unwrap() {
         let file = inv["file"].as_str().unwrap();
-        let row: Option<(String, Option<String>, Option<String>, i64, String)> = conn
+        let row: Option<(String, Option<String>, Option<String>, i64, String, i64)> = conn
             .query_row(
-                "SELECT i.vendor_name, i.invoice_number, i.invoice_date, i.total_minor, i.currency
+                "SELECT i.vendor_name, i.invoice_number, i.invoice_date, i.total_minor, i.currency, i.tax_minor
                  FROM invoices i JOIN documents d ON d.id = i.document_id
                  WHERE d.workspace_id = ?1 AND d.file_name = ?2",
                 [workspace, file],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
             )
             .ok();
-        let Some((vendor, number, date, total, currency)) = row else {
+        let Some((vendor, number, date, total, currency, tax)) = row else {
             if !ingest_failures.iter().any(|f| f.starts_with(file)) {
                 let _ = writeln!(out.report, "- NOT STORED {}", file);
                 out.mismatches += 1;
@@ -103,6 +103,11 @@ fn run_workspace(workspace: &str) -> Outcome {
         if total != expected_total {
             problems.push(format!("total {} != {}", total, expected_total));
         }
+        // The tax line must be read exactly as printed (the arithmetic-mismatch document only
+        // changes the printed total).
+        if tax != inv["tax_minor"].as_i64().unwrap() {
+            problems.push(format!("tax {} != {}", tax, inv["tax_minor"]));
+        }
         if !has_missing_date && date.as_deref() != inv["issued"].as_str() {
             problems.push(format!("date {:?} != {}", date, inv["issued"]));
         }
@@ -122,16 +127,25 @@ fn run_workspace(workspace: &str) -> Outcome {
         let path = dir.join("receipts").join(file);
         match DocumentOrchestrator::ingest_file(&mut db, &blobs, &ocr, &master, workspace, &path, "USD") {
             Ok(_) => {
-                let total: Option<i64> = db
+                let stored: Option<(i64, i64)> = db
                     .conn_ref()
                     .query_row(
-                        "SELECT i.total_minor FROM invoices i JOIN documents d ON d.id = i.document_id
+                        "SELECT i.total_minor, i.tax_minor FROM invoices i JOIN documents d ON d.id = i.document_id
                          WHERE d.workspace_id = ?1 AND d.file_name = ?2",
                         [workspace, file],
-                        |r| r.get(0),
+                        |r| Ok((r.get(0)?, r.get(1)?)),
                     )
                     .ok();
+                let total = stored.map(|(t, _)| t);
                 let expected = rec["total_minor"].as_i64().unwrap();
+                // Receipts carry no tax line, so any extracted tax is a misread (for example a
+                // "Taxi fare" item read as tax).
+                if let Some((_, tax)) = stored {
+                    if tax != 0 {
+                        out.mismatches += 1;
+                        let _ = writeln!(out.report, "- RECEIPT TAX MISREAD {}: extracted tax {}", file, tax);
+                    }
+                }
                 match total {
                     Some(t) if t == expected => {
                         let _ = writeln!(out.report, "- receipt OK {} ({})", file, rec["quality"]);

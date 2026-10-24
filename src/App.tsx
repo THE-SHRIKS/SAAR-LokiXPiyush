@@ -29,6 +29,7 @@ import { DocumentsView } from "./components/DocumentsView";
 import { ReviewView } from "./components/ReviewView";
 import { ReportsView } from "./components/ReportsView";
 import { SecurityView } from "./components/SecurityView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export const App: React.FC = () => {
   // Theme state: "dark" (#111844 canvas) or "light" (#EAE0CF warm linen canvas)
@@ -221,6 +222,8 @@ export const App: React.FC = () => {
 
   const handleLockWorkspace = async () => {
     await SaarApi.lockWorkspace();
+    // The unlock screen lists workspaces from this state, so refresh it (for example after a restore).
+    SaarApi.listWorkspaces().then(setWorkspaces).catch(console.error);
     setWorkspace(null);
     setThreads([]);
     setActiveThreadId(null);
@@ -394,6 +397,8 @@ export const App: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setImportMessage({ text: `Ingestion failed: ${msg}`, type: "error" });
+      // A failed import is kept as a FAILED record; show it now, not after the next unlock.
+      await refreshWorkspaceData();
     } finally {
       setIsImporting(false);
     }
@@ -523,9 +528,10 @@ export const App: React.FC = () => {
     try {
       const manifest = await SaarApi.restoreEncryptedBackup(restoreArchivePath, restorePassphrase);
       setRestoreFeedback(
-        `Restored archive successfully! Workspace: ${manifest.workspaceName}, Blobs: ${manifest.blobCount}`
+        `Restored archive successfully! Workspace: ${manifest.workspaceName}, Blobs: ${manifest.blobCount}. ` +
+          "It now appears on the unlock screen; unlock it with its own workspace passphrase."
       );
-      await refreshWorkspaceData();
+      setWorkspaces(await SaarApi.listWorkspaces());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setRestoreFeedback(`Restore failed: ${msg}`);
@@ -663,6 +669,7 @@ export const App: React.FC = () => {
             {/* Split Viewport: Central Stage + Contextual Evidence Inspector Drawer */}
             <div className="claude-split-body">
               <main className="claude-central-stage">
+                <ErrorBoundary key={activeTab} label={activeTabTitle}>
                 {activeTab === "chat" && (
                   <ChatWorkspace
                     messages={activeThread?.messages || []}
@@ -752,6 +759,7 @@ export const App: React.FC = () => {
                     onRestoreBackup={handleRestoreBackup}
                   />
                 )}
+                </ErrorBoundary>
               </main>
 
               {/* 3. Right Contextual Evidence Drawer */}

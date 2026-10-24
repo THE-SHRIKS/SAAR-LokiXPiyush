@@ -13,6 +13,9 @@ use crate::ai::financial_ops::{self, VerifiedAnswer};
 use crate::ai::{AdversarialDefense, GroundedChatResponse, GroundedFactPacket, GroundingEngine, QueryIntent};
 use rusqlite::Connection;
 
+/// Largest fact packet, in serialized characters, sent to the model (about 3,000 tokens).
+pub const MODEL_PACKET_BUDGET_CHARS: usize = 8_000;
+
 pub enum AnswerPlan {
     Quarantined,
     Verified(VerifiedAnswer),
@@ -26,8 +29,10 @@ pub fn plan(conn: &Connection, ws: &str, base_currency: &str, query: &str) -> Re
     if let Some(answer) = financial_ops::try_answer(conn, ws, base_currency, query)? {
         return Ok(AnswerPlan::Verified(answer));
     }
-    let packet = GroundingEngine::build_fact_packet(conn, ws, query, base_currency)
+    let mut packet = GroundingEngine::build_fact_packet(conn, ws, query, base_currency)
         .map_err(|e| format!("Failed to build fact packet: {}", e))?;
+    // The model runs with a 4096-token context; keep the packet well inside it.
+    packet.fit_to_budget(MODEL_PACKET_BUDGET_CHARS);
     Ok(AnswerPlan::Model(packet))
 }
 
@@ -60,8 +65,9 @@ pub fn model_response(packet: &GroundedFactPacket, raw_answer: &str) -> Grounded
     let mut response = GroundingEngine::validate_and_parse_response(packet, raw_answer);
     response.grounded = false;
     response.verification_note = format!(
-        "Not verified: this text was written by the local language model, and SAAR did not compute its figures. Check them against your records. ({})",
-        response.verification_note
+        "Not verified: this text was written by the local language model, and SAAR did not compute its figures. Check them against your records. ({}){}",
+        response.verification_note,
+        packet.omitted_note.as_ref().map(|n| format!(" {}", n)).unwrap_or_default()
     );
     response
 }
@@ -171,5 +177,38 @@ mod tests {
         let r = model_unavailable_response("the model file is missing");
         assert!(!r.grounded);
         assert!(r.verification_note.contains("model file is missing"));
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn test_a_large_workspace_still_fits_the_model_context() {
+        let db = Database::open_in_memory().unwrap();
+        db.create_workspace("ws", "WS", "USD", &[1u8; 16], &[2u8; 32]).unwrap();
+        for i in 0..400 {
+            db.conn_ref()
+                .execute(
+                    "INSERT INTO transactions (id, workspace_id, posted_date, description, amount_minor, currency, review_state)
+                     VALUES (?1, 'ws', '2026-03-01', ?2, -1000, 'USD', 'UNREVIEWED')",
+                    rusqlite::params![
+                        format!("00000000-0000-4000-8000-{:012}", i),
+                        format!("VENDOR NUMBER {} SERVICES AND SUPPLIES", i)
+                    ],
+                )
+                .unwrap();
+        }
+        let AnswerPlan::Model(packet) = plan(db.conn_ref(), "ws", "USD", "Tell me something about my business").unwrap() else {
+            panic!("expected the model path");
+        };
+        let size = serde_json::to_string(&packet).unwrap().len();
+        assert!(size <= MODEL_PACKET_BUDGET_CHARS + 400, "packet is {} chars", size);
+        assert!(packet.omitted_note.is_some(), "the omission must be stated");
+        // Totals are computed over all 400 rows, not the trimmed list.
+        assert_eq!(packet.total_expense_minor, 400_000);
+        assert!(packet.transactions.len() < 400);
     }
 }

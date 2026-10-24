@@ -2777,3 +2777,43 @@ body,
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #fca5a5;
 }
+
+
+/* Screen-level error boundary: a failed screen never blanks the whole window. */
+.screen-error {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 32px auto;
+  max-width: 560px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-subtle, rgba(255, 120, 120, 0.4));
+  border-radius: 10px;
+  background: var(--surface-raised, rgba(255, 120, 120, 0.08));
+  color: var(--text-primary, inherit);
+}
+.screen-error p { margin: 6px 0 12px; opacity: 0.85; }
+
+
+/* Evidence inspector: extracted field cards */
+.fields-grid { display: grid; gap: 8px; }
+.field-card {
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  cursor: pointer;
+}
+.field-card.selected { border-color: var(--accent, #6d8cff); }
+.field-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.field-name { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+.field-confidence { font-size: 11px; opacity: 0.7; white-space: nowrap; }
+.field-value-text { margin-top: 4px; font-size: 14px; font-weight: 600; word-break: break-word; }
+.field-source-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.65;
+}
+.field-source-meta span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

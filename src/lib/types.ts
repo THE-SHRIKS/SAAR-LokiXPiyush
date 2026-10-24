@@ -87,6 +87,7 @@ export interface DocumentDetails {
   fields: NormalizedField[];
   lineItems: DocumentLineItem[];
   invoiceTotalMinor?: number;
+  currency?: string | null;
 }
 
 export interface DocumentPreview {
@@ -219,7 +220,8 @@ export interface FinancialSummary {
   netSavingsMinor: number;
   currency: string;
   monthlyBreakdown: MonthAggregate[];
-  momExpenseChangePercent?: number;
+  /** null when fewer than two months of data exist. */
+  momExpenseChangePercent?: number | null;
   excludedCurrencies: CurrencyExclusion[];
 }
 

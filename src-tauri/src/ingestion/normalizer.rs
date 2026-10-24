@@ -45,12 +45,20 @@ fn inline_date_pattern() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"(?i)date\s*:\s*(\S+)").unwrap())
 }
 
+/// A tax label as a whole word: "Tax 19%", "GST", "VAT", "IGST". A substring test would read
+/// "Taxi fare 31.53" as a tax line.
+fn tax_label_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\b(?:tax|vat|gst|igst|cgst|sgst)\b").unwrap())
+}
+
 fn currency_code_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"(?i)\b(USD|EUR|INR|GBP|JPY)\b").unwrap())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NormalizedField {
     pub field_key: String,
     pub original_text: String,
@@ -61,6 +69,7 @@ pub struct NormalizedField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NormalizedLineItem {
     pub description: String,
     pub amount_minor: i64,
@@ -275,11 +284,7 @@ impl FieldNormalizer {
                             bounding_box_json: bbox_str.clone(),
                         });
                     }
-                } else if lower.contains("tax")
-                    || lower.contains("igst")
-                    || lower.contains("cgst")
-                    || lower.contains("sgst")
-                {
+                } else if tax_label_pattern().is_match(&lower) {
                     let amt = extract_amount_from_line(text, &page.lines, line_idx, &currency);
                     tax_minor += amt;
                     fields.push(NormalizedField {
@@ -487,5 +492,59 @@ mod tests {
         assert_eq!(norm.subtotal_minor, 4550); // $45.50
         assert_eq!(norm.total_minor, 4550); // $45.50
         assert!(norm.is_arithmetic_valid);
+    }
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::*;
+    use crate::ingestion::ocr_client::{OcrLine, OcrPage, OcrResponse};
+
+    fn response(lines: &[&str]) -> OcrResponse {
+        OcrResponse {
+            status: "success".to_string(),
+            tier: "test".to_string(),
+            page_count: 1,
+            pages: vec![OcrPage {
+                page_num: 1,
+                width: 500.0,
+                height: 700.0,
+                lines: lines
+                    .iter()
+                    .map(|t| OcrLine { text: t.to_string(), confidence: 0.99, bbox: serde_json::json!([]) })
+                    .collect(),
+            }],
+            error: None,
+        }
+    }
+
+    #[test]
+    fn test_taxi_fare_is_not_a_tax_line() {
+        // Lines as OCR reported them for a parking and taxi receipt.
+        let norm = FieldNormalizer::normalize_ocr(
+            &response(&["CITY PARKING", "DATE 2025-04-27", "Notebook", "10.29", "Taxi fare", "31.53", "Coffee", "3.78", "TOTAL", "USD 45.60"]),
+            "USD",
+        );
+        assert_eq!(norm.tax_minor, 0, "'Taxi fare' must not be read as tax");
+        assert_eq!(norm.total_minor, 4560);
+        assert_eq!(norm.invoice_date.as_deref(), Some("2025-04-27"));
+    }
+
+    #[test]
+    fn test_real_tax_labels_are_still_read() {
+        let norm = FieldNormalizer::normalize_ocr(
+            &response(&["ACME LTD", "Invoice No: A-1", "Subtotal USD: 100.00", "Tax 18%: 18.00", "Total Due USD: 118.00"]),
+            "USD",
+        );
+        assert_eq!(norm.tax_minor, 1800);
+        assert!(norm.is_arithmetic_valid);
+        let gst = FieldNormalizer::normalize_ocr(&response(&["ACME LTD", "Subtotal: 100.00", "GST: 5.00", "Total: 105.00"]), "USD");
+        assert_eq!(gst.tax_minor, 500);
+    }
+
+    #[test]
+    fn test_vendor_name_containing_tel_or_tax_is_still_a_vendor() {
+        let norm = FieldNormalizer::normalize_ocr(&response(&["GRAND HOTEL AND SYNTAX CAFE", "Invoice No: H-9", "Total: 20.00"]), "USD");
+        assert_eq!(norm.vendor_name, "GRAND HOTEL AND SYNTAX CAFE");
     }
 }

@@ -95,7 +95,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <span className="metric-subtext">Deterministic minor-unit net balance</span>
           </div>
 
-          {financialSummary.momExpenseChangePercent !== undefined && (
+          {financialSummary.momExpenseChangePercent != null && (
             <div className="metric-tile">
               <span className="metric-label">MoM Expense Trend</span>
               <div className="metric-trend-row">

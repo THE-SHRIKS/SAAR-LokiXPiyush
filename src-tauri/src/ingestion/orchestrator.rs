@@ -13,7 +13,9 @@ use crate::security::BlobStore;
 const MAX_FILE_SIZE_BYTES: u64 = 50 * 1024 * 1024; // 50 MiB limit
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+// `rename_all` renames the variant tags; `rename_all_fields` renames the fields inside them, so
+// the frontend receives documentId, fileName, docType, recordsExtracted.
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum IngestResult {
     Success {
         document_id: String,
@@ -145,6 +147,11 @@ impl DocumentOrchestrator {
             ],
         )?;
 
+        // Everything after registration runs as one fallible unit. If any step fails, the document
+        // is marked FAILED immediately (below), not left PROCESSING until the next startup sweep.
+        let doc_id_for_failure = doc_id.clone();
+        let file_name_for_failure = file_name.clone();
+        let outcome = (|| -> Result<IngestResult, IngestionError> {
         // 5. Ingestion processing based on document type
         let records_extracted = if doc_type == "CSV" {
             let csv_text = std::str::from_utf8(&file_bytes)
@@ -305,5 +312,20 @@ impl DocumentOrchestrator {
             page_count: 1,
             records_extracted,
         })
+        })();
+
+        if let Err(error) = &outcome {
+            let _ = db.conn_ref().execute(
+                "UPDATE documents SET status = 'FAILED' WHERE id = ?1;",
+                params![doc_id_for_failure],
+            );
+            let audit_json = serde_json::json!({
+                "file_name": file_name_for_failure,
+                "error": error.to_string(),
+            })
+            .to_string();
+            let _ = db.record_audit_event(workspace_id, "document", &doc_id_for_failure, "INGEST_FAILED", &audit_json);
+        }
+        outcome
     }
 }

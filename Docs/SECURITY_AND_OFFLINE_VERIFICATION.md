@@ -42,3 +42,25 @@ The legacy blob store was shared across workspaces, and each blob was encrypted 
 5. **WAL and SHM sidecar files** for the encrypted databases are not yet inspected on disk.
 6. **Chat history** lives inside the encrypted per-workspace database. It has been covered by the E2E run, but not by a disk-level scan of its own.
 7. **Offline network verification** was not run in this pass.
+
+
+## Network behaviour of the running application (measured)
+
+Measured on the built `saar.exe` (debug build) on Windows 11, idle on the unlock screen, with the process tree and its TCP sockets listed through `Get-NetTCPConnection`:
+
+- `saar.exe` itself opened **no** non-loopback connections, and no UDP endpoints.
+- The WebView2 **browser process** (`msedgewebview2.exe`, no `--type`), a child of the app, held **two established TCP connections to an external IPv6 address on port 443** in a Microsoft address range. The remote address changed between launches. This was reproducible on every launch.
+- The window's CSP (`connect-src 'none'`) only restricts requests made by the page. It does not control the browser process's own traffic.
+- `additionalBrowserArgs` was added to `tauri.conf.json` to disable Chromium background networking (`--disable-background-networking`, `--disable-component-update`, `--disable-sync`, `--disable-domain-reliability`, `--no-pings`), fail all DNS resolution (`--host-resolver-rules="MAP * ~NOTFOUND"`) and send any residual traffic to a dead local proxy. The arguments were confirmed present on the browser process command line. **The two connections persisted**, so they do not come from Chromium's own network stack.
+
+**Status: OPEN.** SAAR cannot currently claim "no outbound network traffic" for the whole application on a machine with the stock WebView2 runtime. The remaining traffic is Microsoft runtime behaviour. Options that need the owner's decision, because they change the machine or the installer:
+
+1. Ship an installer step that adds an outbound-deny Windows Firewall rule for `msedgewebview2.exe` and `saar.exe` (needs administrator rights).
+2. Bundle a fixed-version WebView2 runtime and apply Microsoft's documented enterprise policies for it (diagnostics and update checks off).
+3. Verify with a packet capture on an isolated network to learn what the connections are before choosing.
+
+Neither the firewall nor any policy was changed during this work.
+
+## GUI testing method
+
+The real window was driven through the WebView2 DevTools protocol on localhost (`tests/gui/`): real mouse clicks, real text input, real key events and screenshots against the packaged frontend and the real backend. The debugging port is opened only by the test harness through an environment variable on the child process; it is not in the shipped configuration. Windows Application Control blocks `node.exe` from starting the unsigned debug build directly, so the harness starts it through PowerShell `Start-Process` (how a user would) and then attaches. No policy was altered.

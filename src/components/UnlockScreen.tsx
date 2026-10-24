@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Lock, Eye, EyeOff, ShieldCheck, ArrowRight, Sun, Moon } from "lucide-react";
 import { SystemStatus, WorkspaceSummary } from "../lib/types";
 
@@ -31,6 +31,15 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
   const hasWorkspaces = workspaces.length > 0;
   const [creating, setCreating] = useState(!hasWorkspaces);
   const [selectedId, setSelectedId] = useState(workspaces[0]?.id ?? "");
+  // The workspace list arrives after the first render on a cold start. Until the user chooses a
+  // mode themselves, follow the list: existing workspaces mean "unlock", none means "create".
+  const userChoseMode = useRef(false);
+  useEffect(() => {
+    if (!userChoseMode.current) setCreating(workspaces.length === 0);
+    setSelectedId((current) =>
+      workspaces.some((w) => w.id === current) ? current : (workspaces[0]?.id ?? ""),
+    );
+  }, [workspaces]);
   const [displayName, setDisplayName] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [passphrase, setPassphrase] = useState("");
@@ -224,6 +233,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
                 type="button"
                 className="quick-demo-btn"
                 onClick={() => {
+                  userChoseMode.current = true;
                   setLocalError(null);
                   setCreating(!creating);
                 }}

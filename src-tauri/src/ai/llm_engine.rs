@@ -195,11 +195,23 @@ impl LlmEngine {
         }
 
         let raw_stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        clean_llm_output(&raw_stdout).ok_or_else(|| LlmError::ExecutionFailed {
+        let answer = clean_llm_output(&raw_stdout).ok_or_else(|| LlmError::ExecutionFailed {
             code: output.status.code(),
             stderr: "Model output did not contain an assistant answer".to_string(),
-        })
+        })?;
+        // llama-cli reports some failures (for example a prompt larger than the context window)
+        // as ordinary text with exit code 0. That is a failure, not an answer.
+        if is_runtime_error_text(&answer) {
+            return Err(LlmError::ExecutionFailed { code: output.status.code(), stderr: answer });
+        }
+        Ok(answer)
     }
+}
+
+/// True for text that llama-cli prints when it fails but still exits successfully.
+fn is_runtime_error_text(answer: &str) -> bool {
+    let head = answer.trim_start();
+    head.starts_with("Error:") || head.starts_with("error:")
 }
 
 /// Extracts the model's answer from llama-cli stdout.
@@ -273,6 +285,13 @@ mod tests {
             clean_llm_output(raw).as_deref(),
             Some("Net figures: 742.81 USD [inv:abc].")
         );
+    }
+
+    #[test]
+    fn test_runtime_error_text_is_not_an_answer() {
+        assert!(is_runtime_error_text("Error: request (8311 tokens) exceeds the available context size (4096 tokens)"));
+        assert!(is_runtime_error_text("  error: failed to load model"));
+        assert!(!is_runtime_error_text("The error rate was 2%."));
     }
 
     #[test]

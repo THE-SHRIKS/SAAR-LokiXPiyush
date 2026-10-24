@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Check, CheckCircle2, Edit2 } from "lucide-react";
 import {
+  CurrencyCode,
   DocumentDetails,
   DocumentPreview,
   NormalizedField,
@@ -37,6 +38,13 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
   if (!isOpen) return null;
 
   const doc = documentDetails?.document;
+  // Amount fields are stored as integer minor units; show them as money in the document's currency.
+  const detailsCurrency = (documentDetails?.currency ?? "USD") as CurrencyCode;
+  const MONEY_FIELDS = new Set(["subtotal", "tax_amount", "total_amount", "discount"]);
+  const displayFieldValue = (key: string, value: string) =>
+    MONEY_FIELDS.has(key) && /^-?\d+$/.test(value)
+      ? formatMinorCurrency(Number(value), detailsCurrency)
+      : value;
 
   return (
     <aside className="evidence-inspector-drawer">
@@ -143,10 +151,12 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
                       {(field.confidence * 100).toFixed(0)}% conf
                     </span>
                   </div>
-                  <div className="field-value-text">{field.normalizedValue}</div>
+                  <div className="field-value-text">
+                    {displayFieldValue(field.fieldKey, field.normalizedValue)}
+                  </div>
                   <div className="field-source-meta">
                     <span>Page {field.pageNum}</span>
-                    <span className="field-bbox-text">Box: {field.boundingBoxJson}</span>
+                    <span>{field.originalText ? `Read as: ${field.originalText}` : ""}</span>
                   </div>
                 </div>
               ))}
@@ -167,7 +177,7 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
                 <thead>
                   <tr>
                     <th>Description</th>
-                    <th className="num-col">Minor Units</th>
+                    <th className="num-col">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,7 +185,7 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
                     <tr key={idx}>
                       <td>{item.description}</td>
                       <td className="num-col font-mono">
-                        {formatMinorCurrency(item.amountMinor, "USD")}
+                        {formatMinorCurrency(item.amountMinor, detailsCurrency)}
                       </td>
                     </tr>
                   ))}

@@ -58,6 +58,41 @@ pub struct GroundedFactPacket {
     pub total_income_minor: i64,
     pub total_expense_minor: i64,
     pub net_savings_minor: i64,
+    /// Set when records were left out so the prompt fits the model context window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub omitted_note: Option<String>,
+}
+
+impl GroundedFactPacket {
+    /// Trims the evidence lists until the serialized packet fits `max_chars`, newest records kept.
+    ///
+    /// The model has a fixed context window, so an oversized packet makes inference fail outright.
+    /// Totals are unaffected: they are computed over all records, not taken from these lists.
+    pub fn fit_to_budget(&mut self, max_chars: usize) {
+        let size = |p: &Self| serde_json::to_string(p).map(|s| s.len()).unwrap_or(usize::MAX);
+        let (mut tx, mut inv, mut an) = (0usize, 0usize, 0usize);
+        while size(self) > max_chars && !self.transactions.is_empty() {
+            let keep = self.transactions.len() / 2;
+            tx += self.transactions.len() - keep;
+            self.transactions.truncate(keep);
+        }
+        while size(self) > max_chars && !self.invoices.is_empty() {
+            let keep = self.invoices.len() / 2;
+            inv += self.invoices.len() - keep;
+            self.invoices.truncate(keep);
+        }
+        while size(self) > max_chars && !self.anomalies.is_empty() {
+            let keep = self.anomalies.len() / 2;
+            an += self.anomalies.len() - keep;
+            self.anomalies.truncate(keep);
+        }
+        if tx + inv + an > 0 {
+            self.omitted_note = Some(format!(
+                "Only the most recent records are listed; {} transactions, {} invoices and {} anomalies were omitted to fit the model context. Totals still cover every record.",
+                tx, inv, an
+            ));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,6 +266,7 @@ impl GroundingEngine {
             total_income_minor: total_income,
             total_expense_minor: total_expense,
             net_savings_minor: total_income - total_expense,
+            omitted_note: None,
         })
     }
 
