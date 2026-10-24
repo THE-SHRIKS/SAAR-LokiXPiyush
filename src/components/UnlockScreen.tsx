@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Lock, Eye, EyeOff, ShieldCheck, ArrowRight, Sun, Moon } from "lucide-react";
 import { SystemStatus, WorkspaceSummary } from "../lib/types";
+import { BrandMark } from "./BrandMark";
 
 export type UnlockMode =
   | { kind: "unlock"; workspaceId: string }
@@ -92,7 +93,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
       <div className="unlock-card-container">
         {/* Brand Monogram & Header */}
         <div className="unlock-brand-header">
-          <div className="unlock-monogram">S</div>
+          <BrandMark className="unlock-monogram" />
           <h1 className="unlock-app-title">SAAR</h1>
           <p className="unlock-app-tagline">Local financial workspace</p>
         </div>

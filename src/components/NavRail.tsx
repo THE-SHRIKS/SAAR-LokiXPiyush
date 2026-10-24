@@ -1,5 +1,6 @@
 import React from "react";
 import { MessageSquare, FileText, GitCompare, BarChart3, ShieldCheck, Lock } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 
 export type WorkspaceTab = "chat" | "documents" | "review" | "reports" | "security";
 
@@ -22,7 +23,7 @@ export const NavRail: React.FC<NavRailProps> = ({
     <aside className="nav-rail">
       {/* Brand Monogram */}
       <div className="rail-brand" title="SAAR — Local Financial Workstation">
-        <div className="brand-monogram">S</div>
+        <BrandMark className="brand-monogram" />
       </div>
 
       {/* Main Navigation Stack */}

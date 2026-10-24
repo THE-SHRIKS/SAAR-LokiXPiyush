@@ -2844,11 +2844,10 @@ body,
    ========================================================================== */
 .brand-monogram,
 .unlock-monogram {
-  background: var(--text-primary);
-  color: var(--canvas-black);
+  display: block;
+  object-fit: cover;
   border: 0;
   border-radius: var(--radius-md);
-  font-weight: 700;
 }
 
 .brand-title,

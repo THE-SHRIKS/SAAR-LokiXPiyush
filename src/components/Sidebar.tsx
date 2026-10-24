@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
 } from "lucide-react";
 import { ChatThread, WorkspaceInfo } from "../lib/types";
+import { BrandMark } from "./BrandMark";
 
 export type WorkspaceTab = "chat" | "documents" | "review" | "reports" | "security";
 
@@ -61,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand & Air-Gap Badge */}
       <div className="sidebar-brand-block">
         <div className="brand-header-row">
-          <div className="brand-monogram">S</div>
+          <BrandMark className="brand-monogram" />
           <div className="brand-text-col">
             <span className="brand-title">SAAR</span>
             <span className="brand-subtitle">Local financial workspace</span>
