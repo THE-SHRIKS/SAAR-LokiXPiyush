@@ -29,6 +29,6 @@ npm run dev
 2. In the Vercel project settings, add these environment variables for Production:
    - `VITE_SITE_URL`: the production origin, for example `https://your-domain.example`. It sets canonical links, Open Graph URLs, the sitemap, and `robots.txt`.
    - `VITE_DOWNLOAD_URL` (optional): where the Windows installer is hosted. Leave it unset to serve `public/downloads/SAAR-Setup.exe` from the site.
-3. The installer is not committed. Put `SAAR-Setup.exe` and `SAAR-Setup.exe.sha256` in `public/downloads/` before deploying, or host the installer elsewhere and set `VITE_DOWNLOAD_URL`.
+3. The installer is not committed. The Windows build is about 210 MiB because it bundles the offline WebView2 runtime, which is larger than Vercel's static file limit. Host `SAAR-Setup.exe` somewhere that accepts large files, such as a GitHub Release, and set `VITE_DOWNLOAD_URL` to its direct download link. For local testing, copy `SAAR-Setup.exe` and `SAAR-Setup.exe.sha256` into `public/downloads/`; that folder is ignored by Git.
 
 Build locally with `npm run build`. The `prebuild` step writes `public/sitemap.xml` and `public/robots.txt` from `VITE_SITE_URL`.

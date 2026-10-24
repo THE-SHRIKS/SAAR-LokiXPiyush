@@ -35,4 +35,4 @@ dist-ssr
 .vercel
 
 # Installer binary: host it outside Git (see README, "Deploy to Vercel")
-public/downloads/*.exe
+public/downloads/
