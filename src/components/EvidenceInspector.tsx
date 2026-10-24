@@ -51,7 +51,7 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
       {/* Header */}
       <div className="inspector-head">
         <div className="inspector-title-group">
-          <span className="inspector-kicker">Contextual Evidence Inspector</span>
+          <span className="inspector-kicker">Source</span>
           <h3 className="inspector-title">
             {doc
               ? doc.fileName
@@ -297,12 +297,12 @@ export const EvidenceInspector: React.FC<EvidenceInspectorProps> = ({
               <span className="meta-val font-mono">{doc.sha256}</span>
             </div>
             <div className="meta-row">
-              <span className="meta-key">File Size</span>
+              <span className="meta-key">Size</span>
               <span className="meta-val font-mono">{(doc.fileSizeBytes / 1024).toFixed(1)} KB</span>
             </div>
             <div className="meta-row">
               <span className="meta-key">Storage</span>
-              <span className="meta-val">AES-256-GCM Authenticated Blob</span>
+              <span className="meta-val">Encrypted at rest</span>
             </div>
           </div>
         )}

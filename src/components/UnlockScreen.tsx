@@ -94,13 +94,13 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
         <div className="unlock-brand-header">
           <div className="unlock-monogram">S</div>
           <h1 className="unlock-app-title">SAAR</h1>
-          <p className="unlock-app-tagline">Sovereign Financial Intelligence</p>
+          <p className="unlock-app-tagline">Local financial workspace</p>
         </div>
 
         {/* Security Assurance Tag */}
         <div className="unlock-assurance-pill">
           <ShieldCheck size={13} className="pill-icon" />
-          <span>Air-Gapped · Local Hardware · Zero Cloud Egress</span>
+          <span>All processing happens on this computer</span>
         </div>
 
         <form onSubmit={handleSubmit} className="unlock-form">
@@ -250,7 +250,7 @@ export const UnlockScreen: React.FC<UnlockScreenProps> = ({
           <div className="crypto-badges-row">
             <span className="crypto-badge">Argon2id (64 MiB, 3 passes)</span>
             <span className="crypto-separator">·</span>
-            <span className="crypto-badge">SQLCipher AES-256-GCM</span>
+            <span className="crypto-badge">SQLCipher AES-256</span>
           </div>
           <div className="runtime-meta-row">
             <span>Runtime {status?.appVersion ?? "—"}</span>

@@ -32,7 +32,7 @@ import { SecurityView } from "./components/SecurityView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export const App: React.FC = () => {
-  // Theme state: "dark" (#111844 canvas) or "light" (#EAE0CF warm linen canvas)
+  // Theme state: "dark" or "light"
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     return (localStorage.getItem("saar_theme") as "dark" | "light") || "dark";
   });
@@ -407,7 +407,7 @@ export const App: React.FC = () => {
   // Reconciliation Handlers
   const handleRunReconciliation = async () => {
     setIsReconciling(true);
-    setReviewMessage("Executing deterministic matching rules & anomaly detection...");
+    setReviewMessage("Matching documents to bank rows and checking for anomalies...");
     try {
       const res = await SaarApi.runReconciliation();
       setReconciliationLinks(res.links);
@@ -602,14 +602,14 @@ export const App: React.FC = () => {
   // Header Title
   const activeTabTitle = useMemo(() => {
     if (activeTab === "chat") {
-      return activeThread?.title || "Conversation Workspace";
+      return activeThread?.title || "New conversation";
     }
     const titles: Record<WorkspaceTab, string> = {
       chat: "Conversation",
-      documents: "Document Archive & Ingestion",
-      review: "Reconciliation & Ledger Postings",
-      reports: "Deterministic Financial Reports",
-      security: "Vault Security & Cryptography",
+      documents: "Documents",
+      review: "Reconciliation",
+      reports: "Reports",
+      security: "Security",
     };
     return titles[activeTab];
   }, [activeTab, activeThread]);
@@ -664,6 +664,7 @@ export const App: React.FC = () => {
               hasInspectorContent={hasInspectorContent}
               theme={theme}
               onToggleTheme={handleToggleTheme}
+              modelLabel={status?.llmModelLabel ?? "Local model"}
             />
 
             {/* Split Viewport: Central Stage + Contextual Evidence Inspector Drawer */}
@@ -674,6 +675,7 @@ export const App: React.FC = () => {
                   <ChatWorkspace
                     messages={activeThread?.messages || []}
                     onSendMessage={handleSendMessage}
+                    modelLabel={status?.llmModelLabel ?? "the local model"}
                     isLoading={isChatLoading}
                     errorMessage={chatError}
                     suggestions={chatSuggestions}

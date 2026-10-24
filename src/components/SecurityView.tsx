@@ -44,9 +44,9 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
   return (
     <div className="security-workspace">
       <div className="security-header-block">
-        <h3>Security Boundary & Local Runtime Verification</h3>
+        <h3>Security</h3>
         <span className="security-header-sub">
-          Cryptographic enforcement · Zero cloud egress · Memory-hard Argon2id key derivation
+          How your data is protected, and what the app runs on this computer.
         </span>
       </div>
 
@@ -55,24 +55,24 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
         <div className="sec-spec-card">
           <div className="spec-card-top">
             <HardDrive size={16} className="icon-cream" />
-            <h4>Storage & Cryptography</h4>
+            <h4>Storage and encryption</h4>
           </div>
           <div className="spec-item-list">
             <div className="spec-item">
-              <span className="spec-item-label">Database Engine</span>
-              <span className="spec-item-val font-mono">SQLite 3 (WAL + FTS5)</span>
+              <span className="spec-item-label">Database</span>
+              <span className="spec-item-val font-mono">SQLCipher, one encrypted file per workspace</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Key Derivation</span>
-              <span className="spec-item-val font-mono">Argon2id (64 MiB RAM, 3 Passes)</span>
+              <span className="spec-item-label">Key derivation</span>
+              <span className="spec-item-val font-mono">Argon2id (64 MiB, 3 passes)</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Blob Storage</span>
-              <span className="spec-item-val font-mono">AES-256-GCM Authenticated</span>
+              <span className="spec-item-label">Stored documents</span>
+              <span className="spec-item-val font-mono">AES-256-GCM</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Deduplication</span>
-              <span className="spec-item-val font-mono">SHA-256 Content-Addressed</span>
+              <span className="spec-item-label">Duplicate detection</span>
+              <span className="spec-item-val font-mono">SHA-256 of file contents</span>
             </div>
           </div>
         </div>
@@ -80,24 +80,24 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
         <div className="sec-spec-card">
           <div className="spec-card-top">
             <ShieldCheck size={16} className="icon-cream" />
-            <h4>Air-Gap Network Boundary</h4>
+            <h4>Network</h4>
           </div>
           <div className="spec-item-list">
             <div className="spec-item">
-              <span className="spec-item-label">Content Security Policy</span>
+              <span className="spec-item-label">Page network policy</span>
               <span className="spec-item-val font-mono">connect-src &apos;none&apos;</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Remote Outbound Sockets</span>
-              <span className="spec-item-val font-mono">0 (Strictly Blocked)</span>
+              <span className="spec-item-label">App network features</span>
+              <span className="spec-item-val font-mono">None used</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Telemetry & Analytics</span>
-              <span className="spec-item-val font-mono">Permanently Disabled</span>
+              <span className="spec-item-label">Telemetry</span>
+              <span className="spec-item-val font-mono">None</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Silent Background Updates</span>
-              <span className="spec-item-val font-mono">Zero</span>
+              <span className="spec-item-label">Browser component</span>
+              <span className="spec-item-val font-mono">Windows WebView2; SAAR does not control its own connections</span>
             </div>
           </div>
         </div>
@@ -105,27 +105,27 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
         <div className="sec-spec-card">
           <div className="spec-card-top">
             <Cpu size={16} className="icon-cream" />
-            <h4>Local Document & AI Runtimes</h4>
+            <h4>Runtimes</h4>
           </div>
           <div className="spec-item-list">
             <div className="spec-item">
-              <span className="spec-item-label">App Version / OS</span>
+              <span className="spec-item-label">Version</span>
               <span className="spec-item-val font-mono">
                 v{status?.appVersion || "0.1.0"} ({status?.platform || "windows"})
               </span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Local LLM</span>
+              <span className="spec-item-label">Language model</span>
               <span className="spec-item-val font-mono">
-                {status?.llmModelId || "qwen-2.5-3b-instruct-q3_k_m"}
+                {status?.llmModelLabel || "none"} ({status?.llmModelId || "not installed"})
               </span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">Inference Mode</span>
-              <span className="spec-item-val font-mono">llama.cpp CPU AVX2 (Greedy)</span>
+              <span className="spec-item-label">Inference</span>
+              <span className="spec-item-val font-mono">llama.cpp, GPU when available, otherwise CPU</span>
             </div>
             <div className="spec-item">
-              <span className="spec-item-label">OCR Engine</span>
+              <span className="spec-item-label">Text recognition</span>
               <span className="spec-item-val font-mono">RapidOCR (DBNet + SVTR ONNX)</span>
             </div>
           </div>
@@ -136,11 +136,11 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
       <div className="backup-card">
         <div className="backup-card-head">
           <Archive size={16} className="icon-cream" />
-          <h4>Authenticated Encrypted Backup & Disaster Recovery (.saar)</h4>
+          <h4>Encrypted backup and restore</h4>
         </div>
         <p className="backup-card-desc">
-          Generate an authenticated, tamper-evident container packaging the SQLite database and blob
-          store. Restorable offline on any Windows workstation with your passphrase.
+          Generate an authenticated, tamper-evident container packaging the encrypted database and stored
+          documents. Restorable offline on any Windows workstation with your passphrase.
         </p>
 
         <div className="backup-split-grid">

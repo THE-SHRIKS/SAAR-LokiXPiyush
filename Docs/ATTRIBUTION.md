@@ -4,9 +4,9 @@ OpenDeck incorporates open-source software and open-weights machine learning mod
 
 ---
 
-### 1. Qwen 2.5 LLM Weights
-- **Model:** Qwen2.5-3B-Instruct (Quantized to GGUF Q3_K_M)
-- **Copyright:** (c) 2024 Alibaba Group
+### 1. Qwen3 LLM Weights
+- **Model:** Qwen3-4B (Quantized to GGUF Q4_K_M)
+- **Copyright:** (c) 2025 Alibaba Group
 - **License:** Apache License, Version 2.0
 - **Notice:** Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 

@@ -98,3 +98,12 @@ Verdict unchanged: **NOT READY**, for the reasons in the last two rows.
 | 7 - Offline release | FAIL / OPEN: WebView2 keeps outbound TLS connections despite Chromium flags; no disconnected-network run | `Docs/SECURITY_AND_OFFLINE_VERIFICATION.md` |
 
 Still open: WebView2 outbound connections (owner decision: firewall or runtime policy), installer build and install test, disconnected-network run, GPU inference and Qwen3.5-4B evaluation, currency conversion, anomaly noise on recurring large payments, partial-payment linking, model-request cancel control, keyboard/focus audit, private temp folder for decrypted files.
+
+## Update: Qwen3 4B on GPU and interface redesign
+
+- Model: Qwen3-4B Q4_K_M (2.5 GB, SHA-256 pinned from the official Qwen/Qwen3-4B-GGUF download), replacing Qwen2.5-3B Q3_K_M. Runs with GPU offload on the RTX 4060 (8 GB) with a CPU fallback; reasoning mode is off. Direct `llama-cli` measurement: 54 tokens/s on GPU against 15 on CPU; prompt processing about 10 times faster.
+- Free-form answer in the real window: 8 s (45 s before). The text is still labelled Not verified; figures come from code.
+- Classification replies are bounded by the grammar (rationale at most 160 characters), because Qwen3 wrote long rationales that were cut off mid-JSON.
+- Interface: neutral graphite and off-white themes with one accent; green, red and amber only mean credit, debit and caution. Plain labels instead of jargon; anomaly codes shown as readable names; citations shown as "Transaction 2cc01800". Claims the app could not back ("Air-Gapped", "0 outbound sockets") were removed; the Security page now states that the WebView2 component's own connections are not controlled by SAAR.
+- Regression after both changes: 115 library tests, p1-p6, migration (3), golden dataset (2), command-layer end-to-end, frontend (7), real-window run (61 checks, 0 failures).
+- Not done: comparison of Qwen3 4B against Qwen3 8B, Phi-4-mini or Gemma 3 on the corpus questions; accuracy of free-form text is unmeasured. Verdict unchanged: NOT READY (installer, offline run, WebView2 traffic).

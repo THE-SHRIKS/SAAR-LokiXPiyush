@@ -145,7 +145,7 @@ try {
 
   // ---------------------------------------------------------------- B. Every screen opens
   section("B. Navigation: every screen opens and shows its controls");
-  const tabs = ["Documents & Ingestion", "Reconciliation & Ledger", "Financial Reports", "Vault & Cryptography"];
+  const tabs = ["Documents", "Reconciliation", "Reports", "Security"];
   for (const t of tabs) {
     await openTab(app, t);
     const body = await app.eval(`document.body.innerText.length`);
@@ -156,7 +156,7 @@ try {
 
   // ---------------------------------------------------------------- C. Import
   section("C. Import documents");
-  await openTab(app, "Documents & Ingestion");
+  await openTab(app, "Documents");
   const files = [];
   for (const sub of ["invoices", "receipts"]) {
     for (const f of fs.readdirSync(path.join(corpus, sub)).sort()) files.push(path.join(corpus, sub, f));
@@ -182,7 +182,7 @@ try {
 
   // ---------------------------------------------------------------- D. Reconciliation
   section("D. Reconciliation and review");
-  await openTab(app, "Reconciliation & Ledger");
+  await openTab(app, "Reconciliation");
   await app.click(q.byText("button.btn-primary-medium", "Run Reconciliation"), "Run Reconciliation");
   await app.waitFor(`document.body.innerText.includes("Reconciliation complete")`, { timeout: 60000, what: "reconciliation message" });
   const recMsg = await app.eval(`(document.body.innerText.match(/Reconciliation complete[^\\n]*/) || [""])[0]`);
@@ -250,7 +250,7 @@ try {
 
   // ---------------------------------------------------------------- F. Reports
   section("F. Reports");
-  await openTab(app, "Financial Reports");
+  await openTab(app, "Reports");
   await app.waitFor(`document.body.innerText.includes("Export")`, { timeout: 10000 });
   const bodyReports = await app.eval(`document.body.innerText`);
   check(bodyReports.includes(money(usd.expense, "USD").replace(" USD", "")) || bodyReports.includes(String(Math.floor(usd.expense / 100)).slice(0, 3)), "the reports screen shows the USD totals");
@@ -272,7 +272,7 @@ try {
 
   // ---------------------------------------------------------------- G. Backup
   section("G. Encrypted backup");
-  await openTab(app, "Vault & Cryptography");
+  await openTab(app, "Security");
   await app.type(q.sel('input[placeholder="Enter backup passphrase..."]'), BACKUP_PASS);
   await app.click(q.byText("button.btn-primary-medium", "Create Encrypted Backup"), "backup");
   await app.waitFor(`document.body.innerText.includes("Encrypted archive created") || document.body.innerText.includes("Backup failed")`, { timeout: 60000 });
@@ -297,7 +297,7 @@ try {
   await unlockExisting(app, WORKSPACE_PASS);
   await app.waitFor(`document.body.innerText.includes("Start new chat")`, { timeout: 60000 });
   check(true, "correct passphrase unlocks");
-  await openTab(app, "Documents & Ingestion");
+  await openTab(app, "Documents");
   const rowsAfter = await app.eval(`document.querySelectorAll("table tbody tr").length`);
   check(rowsAfter === files.length + 1, `documents persisted across lock and unlock (${rowsAfter})`);
 
@@ -314,7 +314,7 @@ try {
   check(/What are my total expenses|RECENTS/.test(threadTitles), "conversation history survived the restart");
   await app.click(q.byText(".thread-item, .sidebar-thread-item, .thread-row", "What are my total"), "thread").catch(() => {});
   await sleep(800);
-  await openTab(app, "Documents & Ingestion");
+  await openTab(app, "Documents");
   const rowsRestart = await app.eval(`document.querySelectorAll("table tbody tr").length`);
   check(rowsRestart === files.length + 1, `all ${rowsRestart} document rows present after restart`);
   await app.click(q.sel(".new-chat-btn"), "new chat");
@@ -327,12 +327,12 @@ try {
   for (const [w, h] of [[1920, 1080], [1366, 768], [1024, 700]]) {
     await app.viewport(w, h);
     await sleep(400);
-    for (const t of ["Documents & Ingestion", "Reconciliation & Ledger", "Financial Reports", "Vault & Cryptography"]) {
+    for (const t of ["Documents", "Reconciliation", "Reports", "Security"]) {
       await openTab(app, t);
       const ov = await overflow(app);
       check(!ov, `${w}x${h} ${t}: no horizontal overflow`);
     }
-    await openTab(app, "Financial Reports");
+    await openTab(app, "Reports");
     await app.screenshot(path.join(shots, `12_reports_${w}x${h}.png`));
   }
   await app.viewport(1280, 840);
@@ -349,7 +349,7 @@ try {
   await appB.type(q.id("passphrase-confirm-input"), "Throwaway-Passphrase-2026");
   await appB.click(q.sel(".unlock-submit-btn"), "create");
   await appB.waitFor(`document.body.innerText.includes("Start new chat")`, { timeout: 60000 });
-  await appB.click(q.byText("button.tool-nav-btn", "Vault & Cryptography"), "vault");
+  await appB.click(q.byText("button.tool-nav-btn", "Security"), "vault");
   await sleep(500);
   await appB.type(q.sel('input[placeholder="Absolute path to .saar archive..."]'), archive);
   await appB.type(q.sel('input[placeholder="Archive passphrase..."]'), BACKUP_PASS);
@@ -378,7 +378,7 @@ try {
     await appB.screenshot(path.join(shots, "98_restore_unlock_failed.png"));
     throw new Error(`unlocking the restored workspace failed: ${banner}`);
   }
-  await appB.click(q.byText("button.tool-nav-btn", "Documents & Ingestion"), "docs");
+  await appB.click(q.byText("button.tool-nav-btn", "Documents"), "docs");
   await sleep(800);
   const rowsB = await appB.eval(`document.querySelectorAll("table tbody tr").length`);
   check(rowsB === files.length + 1, `restored workspace lists all ${rowsB} document rows`);

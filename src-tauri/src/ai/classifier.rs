@@ -17,7 +17,8 @@ pub const ALLOWED_CATEGORIES: &[&str] = &[
 pub const CLASSIFIER_GBNF_GRAMMAR: &str = r#"root ::= "{" space category-kv "," space confidence-kv "," space rationale-kv space "}"
 category-kv ::= "\"category\"" space ":" space category
 confidence-kv ::= "\"confidence\"" space ":" space decimal
-rationale-kv ::= "\"rationale\"" space ":" space string
+rationale-kv ::= "\"rationale\"" space ":" space rationale
+rationale ::= "\"" char{0,160} "\""
 category ::= "\"Software & Cloud Services\"" | "\"Office Supplies & Stationery\"" | "\"Consulting & Professional Services\"" | "\"Travel, Lodging & Meals\"" | "\"Hardware & IT Equipment\"" | "\"Banking Charges, Fees & Taxes\"" | "\"General Operating Expense\""
 decimal ::= [0-1] ("." [0-9]{1,4})?
 char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})
@@ -54,6 +55,7 @@ impl TransactionClassifier {
         let system_prompt =
             "You are an expert bookkeeping assistant. \
              Assign a transaction to exactly one allowed expense category with a confidence score between 0.0 and 1.0. \
+             Keep the rationale to one short sentence. \
              You must output JSON conforming to the grammar.";
 
         let user_prompt = format!(

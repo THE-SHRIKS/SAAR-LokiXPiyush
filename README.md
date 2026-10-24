@@ -22,7 +22,7 @@
 
 * **Total Air-Gap Isolation (`connect-src 'none'`):** Enforced by WebKit/WebView2 CSP, OS supervisor controls, and isolated Linux namespace tests (`unshare -rn`). Zero outgoing network sockets, zero DNS lookups, zero analytics.
 * **Exact Integer Minor-Unit Currency Arithmetic:** Never uses floating-point numbers (`f32`/`f64`) for money. All values are represented as signed 64-bit integers (`i64`) in atomic minor currency units (cents, paise, yen).
-* **Grounded Local LLM Runtimes:** Bundles offline `llama.cpp` CPU execution running quantized **Qwen2.5-3B-Instruct** (`Q3_K_M.gguf`). Enforces strict **GBNF formal grammars** for expense categorization and verified source citations (`[inv:ID]`, `[tx:ID]`) with anti-hallucination verification.
+* **Grounded Local LLM Runtimes:** Bundles offline `llama.cpp` CPU execution running quantized **Qwen3-4B** (`Q4_K_M.gguf`, GPU offload with CPU fallback). Enforces strict **GBNF formal grammars** for expense categorization and verified source citations (`[inv:ID]`, `[tx:ID]`) with anti-hallucination verification.
 * **Local OCR & Evidence Inspector:** RapidOCR ONNX models extract tabular data and bounding boxes from digital PDFs, scanned receipts, and invoices with interactive visual overlays.
 * **Deterministic Multi-Pass Reconciliation:** Automated deterministic rule pipelines for exact matches, vendor token matching, and date tolerance windows.
 * **Authenticated Encrypted Archives (`.saar`):** AES-256-GCM authenticated container bundling the encrypted SQLite database and blob store with Argon2id key derivation.
@@ -56,7 +56,7 @@ flowchart TD
     end
 
     subgraph SIDECARS ["Local Offline Sidecars"]
-        LLM["llama-cli (AVX2 CPU)\nQwen2.5-3B-Instruct Q3_K_M"]
+        LLM["llama-cli (GPU or CPU)\nQwen3-4B Q4_K_M"]
         OCR["RapidOCR ONNX Runtime\nDBNet + SVTR Text Extraction"]
     end
 
@@ -82,7 +82,7 @@ SAAR/
 │   └── WINDOWS_BUILD_GUIDE.md      # Step-by-step MSVC native Windows build guide
 ├── models/
 │   ├── manifests/                  # Model manifest, licenses, and SHA-256 registries
-│   └── weights/                    # Pinned local model weights (Qwen2.5-3B GGUF)
+│   └── weights/                    # Pinned local model weights (Qwen3-4B GGUF)
 ├── scripts/
 │   ├── env.sh                      # Unified Unix build toolchain wrapper
 │   ├── network_egress_audit.sh     # Air-gap network denial audit script
@@ -163,10 +163,10 @@ SAAR/
    ```
 
 3. **Verify model assets:**
-   Ensure `models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf` is placed in `models/weights/`. Check hashes:
+   Ensure `models/weights/Qwen3-4B-Q4_K_M.gguf` is placed in `models/weights/`. Check hashes:
    ```bash
-   sha256sum models/weights/Qwen2.5-3B-Instruct-Q3_K_M.gguf
-   # Expected: 8eff4e0ec533ecda30a7d25e016ee89cebc7c3e72ebfcb87d605c4ea8fc580ea
+   sha256sum models/weights/Qwen3-4B-Q4_K_M.gguf
+   # Expected: 7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
    ```
 
 4. **Launch development workstation:**
@@ -212,7 +212,7 @@ pnpm run format
 ## 📜 Attribution & Licensing
 
 * **Core Codebase:** Licensed under dual **MIT** / **Apache 2.0**.
-* **LLM Weights:** [Qwen2.5-3B-Instruct](https://github.com/QwenLM/Qwen2.5) licensed under the Qwen Open Research License.
+* **LLM Weights:** [Qwen3-4B](https://huggingface.co/Qwen/Qwen3-4B-GGUF) licensed under Apache 2.0.
 * **OCR Models:** [PaddleOCR / RapidOCR](https://github.com/RapidAI/RapidOCR) licensed under Apache 2.0.
 * For third-party notices and complete component manifests, refer to [`RELEASE_MANIFEST.md`](RELEASE_MANIFEST.md) and [`Docs/ATTRIBUTION.md`](Docs/ATTRIBUTION.md).
 

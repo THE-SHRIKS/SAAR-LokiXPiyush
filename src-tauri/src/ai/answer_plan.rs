@@ -54,8 +54,8 @@ pub fn verified_response(answer: &VerifiedAnswer) -> GroundedChatResponse {
         citations: answer.citations.clone(),
         grounded: true,
         verification_note: format!(
-            "Verified: computed from your records by SAAR ({}). Scope: {}. The language model did not produce these figures.",
-            answer.operation, answer.scope
+            "Verified: calculated from your records by SAAR. Scope: {}. The language model did not produce these figures.",
+            answer.scope
         ),
     }
 }

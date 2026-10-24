@@ -61,12 +61,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="brand-monogram">S</div>
           <div className="brand-text-col">
             <span className="brand-title">SAAR</span>
-            <span className="brand-subtitle">Financial Intelligence</span>
+            <span className="brand-subtitle">Local financial workspace</span>
           </div>
         </div>
         <div className="airgap-badge">
           <span className="airgap-dot" />
-          <span className="airgap-text">Air-Gapped · Local CPU</span>
+          <span className="airgap-text">Runs on this computer</span>
         </div>
       </div>
 
@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {pinnedThreads.length > 0 && (
           <div className="thread-section">
             <div className="section-header-label">
-              <span>PINNED</span>
+              <span>Pinned</span>
             </div>
             <div className="thread-items-list">
               {pinnedThreads.map((thread) => {
@@ -134,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Recent Threads Section */}
         <div className="thread-section">
           <div className="section-header-label">
-            <span>RECENTS</span>
+            <span>Recent</span>
           </div>
           <div className="thread-items-list">
             {recentThreads.length === 0 ? (
@@ -180,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Dedicated Financial Workspaces */}
         <div className="thread-section secondary-tools-section">
           <div className="section-header-label">
-            <span>FINANCIAL WORKSPACES</span>
+            <span>Workspace</span>
           </div>
           <div className="tool-links-list">
             <button
@@ -189,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="tool-nav-content">
                 <FileText size={14} className="tool-icon" />
-                <span className="tool-label">Documents & Ingestion</span>
+                <span className="tool-label">Documents</span>
               </div>
               {documentCount > 0 && <span className="tool-badge">{documentCount}</span>}
             </button>
@@ -200,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="tool-nav-content">
                 <GitCompare size={14} className="tool-icon" />
-                <span className="tool-label">Reconciliation & Ledger</span>
+                <span className="tool-label">Reconciliation</span>
               </div>
               {pendingReviewCount > 0 && (
                 <span className="tool-badge pending">{pendingReviewCount}</span>
@@ -213,7 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="tool-nav-content">
                 <BarChart3 size={14} className="tool-icon" />
-                <span className="tool-label">Financial Reports</span>
+                <span className="tool-label">Reports</span>
               </div>
             </button>
 
@@ -223,7 +223,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="tool-nav-content">
                 <ShieldCheck size={14} className="tool-icon" />
-                <span className="tool-label">Vault & Cryptography</span>
+                <span className="tool-label">Security</span>
               </div>
             </button>
           </div>

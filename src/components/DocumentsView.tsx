@@ -51,11 +51,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         <div className="ingest-card-head">
           <div className="ingest-title-wrap">
             <UploadCloud size={16} className="icon-cream" />
-            <h3>Air-Gapped Ingestion Pipeline</h3>
+            <h3>Import documents</h3>
           </div>
           <span className="ingest-guidance">
-            Eligible: Digital PDF, Scanned OCR Image (PNG/JPG), Bank Statement CSV (Max 50MB, 50
-            pages)
+            PDF, scanned image (PNG or JPG) or bank statement CSV. Up to 50 MB and 50 pages.
           </span>
         </div>
 
@@ -92,7 +91,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         <div className="table-card-toolbar">
           <div className="toolbar-left">
             <h4>Document Repository ({documents.length})</h4>
-            <span className="toolbar-sub">AES-256-GCM Content-Addressed Blob Storage</span>
+            <span className="toolbar-sub">Stored encrypted on this computer</span>
           </div>
 
           <div className="filter-button-group">
@@ -168,7 +167,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     <td>
                       <span className="status-pill ready">{doc.status}</span>
                     </td>
-                    <td className="font-mono text-muted text-xs">{doc.importedAt}</td>
+                    <td className="font-mono text-muted text-xs">{doc.importedAt.replace("T", " ").slice(0, 16)}</td>
                     <td className="action-col">
                       <ChevronRight size={14} className="row-chevron" />
                     </td>

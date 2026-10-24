@@ -31,10 +31,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Top Export Command Bar */}
       <div className="reports-command-bar">
         <div className="command-bar-info">
-          <h3>Deterministic Financial Reports</h3>
+          <h3>Reports</h3>
           <span className="command-bar-sub">
-            Exact minor-unit ledger arithmetic · Provenance-audited vector PDF & RFC 4180 CSV
-            exports
+            Totals are calculated from your records. Export as PDF or CSV.
           </span>
         </div>
 
@@ -45,7 +44,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             disabled={isExporting}
           >
             <Download size={13} />
-            <span>{isExporting ? "Rendering PDF..." : "Export Source-Traceable PDF"}</span>
+            <span>{isExporting ? "Rendering PDF..." : "Export PDF"}</span>
           </button>
 
           <button
@@ -54,7 +53,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             disabled={isExporting}
           >
             <FileText size={13} />
-            <span>{isExporting ? "Generating CSV..." : "Export Ledger CSV"}</span>
+            <span>{isExporting ? "Generating CSV..." : "Export CSV"}</span>
           </button>
         </div>
       </div>
@@ -70,7 +69,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {financialSummary && (
         <div className="reports-metric-grid">
           <div className="metric-tile">
-            <span className="metric-label">Total Inflow / Revenue</span>
+            <span className="metric-label">Money in</span>
             <div className="metric-value amount-credit font-mono">
               {formatMinorCurrency(financialSummary.totalIncomeMinor, baseCurrency)}
             </div>
@@ -78,7 +77,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           <div className="metric-tile">
-            <span className="metric-label">Total Outflow / Expenses</span>
+            <span className="metric-label">Money out</span>
             <div className="metric-value amount-debit font-mono">
               {formatMinorCurrency(financialSummary.totalExpenseMinor, baseCurrency)}
             </div>
@@ -86,7 +85,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           <div className="metric-tile">
-            <span className="metric-label">Net Operating Surplus</span>
+            <span className="metric-label">Net</span>
             <div
               className={`metric-value font-mono ${
                 financialSummary.netSavingsMinor >= 0 ? "amount-credit" : "amount-debit"
@@ -141,8 +140,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="reports-chart-card">
           <div className="chart-card-head">
             <BarChart3 size={15} className="icon-cream" />
-            <h4>Monthly Cash Flow Trajectory</h4>
-            <span className="chart-sub">Minor-unit integer height scaling</span>
+            <h4>Monthly cash flow</h4>
+            <span className="chart-sub">Income and expenses by month</span>
           </div>
 
           <div className="chart-svg-container">
@@ -174,17 +173,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     return (
                       <g key={m.monthKey} className="chart-group">
                         <title>{`${m.monthKey}: income ${formatMinorCurrency(m.totalIncomeMinor, cur)}, expenses ${formatMinorCurrency(m.totalExpenseMinor, cur)}`}</title>
-                        <rect x={centre - barW - 2} y={baseline - incomeH} width={barW} height={incomeH} fill="#22C55E" rx="2" />
-                        <rect x={centre + 2} y={baseline - expenseH} width={barW} height={expenseH} fill="#EF4444" rx="2" />
+                        <rect x={centre - barW - 2} y={baseline - incomeH} width={barW} height={incomeH} style={{ fill: "var(--color-credit)" }} rx="2" />
+                        <rect x={centre + 2} y={baseline - expenseH} width={barW} height={expenseH} style={{ fill: "var(--color-debit)" }} rx="2" />
                         {/* Income label ends at the centre line, expense label starts at it: they never overlap. */}
-                        <text x={centre - 3} y={baseline - incomeH - 5} textAnchor="end" fill="#86EFAC" fontSize="9" fontFamily="monospace">
+                        <text x={centre - 3} y={baseline - incomeH - 5} textAnchor="end" style={{ fill: "var(--text-secondary)" }} fontSize="10" fontFamily="monospace">
                           {compact(m.totalIncomeMinor, cur)}
                         </text>
-                        <text x={centre + 3} y={baseline - expenseH - 5} textAnchor="start" fill="#FCA5A5" fontSize="9" fontFamily="monospace">
+                        <text x={centre + 3} y={baseline - expenseH - 5} textAnchor="start" style={{ fill: "var(--text-secondary)" }} fontSize="10" fontFamily="monospace">
                           {compact(m.totalExpenseMinor, cur)}
                         </text>
                         {(!thin || idx % 2 === 0) && (
-                          <text x={centre} y={baseline + 18} textAnchor="middle" fill="#739EC9" fontSize="11" fontFamily="sans-serif">
+                          <text x={centre} y={baseline + 18} textAnchor="middle" style={{ fill: "var(--text-muted)" }} fontSize="11" fontFamily="sans-serif">
                             {m.monthKey}
                           </text>
                         )}
@@ -243,7 +242,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Historical Report Exports Table */}
       <div className="reports-table-card">
         <div className="table-card-head">
-          <span className="table-head-title">Generated Report Exports & Cryptographic Proofs</span>
+          <span className="table-head-title">Exported reports</span>
           <span className="table-head-subtitle">SHA-256 immutable snapshot fingerprints</span>
         </div>
 

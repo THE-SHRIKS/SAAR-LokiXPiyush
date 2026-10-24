@@ -18,6 +18,7 @@ pub struct SystemStatus {
     pub ocr_ready: bool,
     pub llm_ready: bool,
     pub llm_model_id: String,
+    pub llm_model_label: String,
     pub active_workspace_id: Option<String>,
     pub database_encrypted: bool,
 }
@@ -88,10 +89,11 @@ pub fn get_system_status(state: State<AppState>) -> SystemStatus {
         ocr_ready,
         llm_ready,
         llm_model_id: if llm_ready {
-            "qwen-2.5-3b-instruct-q3_k_m".to_string()
+            crate::ai::llm_engine::MODEL_ID.to_string()
         } else {
             "none".to_string()
         },
+        llm_model_label: crate::ai::llm_engine::MODEL_LABEL.to_string(),
         active_workspace_id: ws_guard.clone(),
         database_encrypted,
     }

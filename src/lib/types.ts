@@ -144,6 +144,7 @@ export interface SystemStatus {
   ocrReady: boolean;
   llmReady: boolean;
   llmModelId: string;
+  llmModelLabel: string;
   activeWorkspaceId: string | null;
   databaseEncrypted: boolean;
 }

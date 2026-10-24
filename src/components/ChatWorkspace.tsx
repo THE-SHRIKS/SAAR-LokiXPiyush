@@ -5,6 +5,7 @@ import { ChatMessage } from "../lib/types";
 interface ChatWorkspaceProps {
   messages: ChatMessage[];
   onSendMessage: (query: string) => Promise<void>;
+  modelLabel: string;
   isLoading: boolean;
   onSelectCitation: (citation: string) => void;
   onNavigateToTab: (tab: "documents" | "review" | "reports") => void;
@@ -13,9 +14,17 @@ interface ChatWorkspaceProps {
   suggestions: string[];
 }
 
+/** "tx:3f9a…-uuid" becomes "Transaction 3f9a1c2d". The full reference stays in the tooltip. */
+const citationLabel = (cite: string): string => {
+  const [kind, id = ""] = cite.split(":");
+  const names: Record<string, string> = { tx: "Transaction", inv: "Invoice", doc: "Document" };
+  return `${names[kind] ?? kind} ${id.slice(0, 8)}`;
+};
+
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   messages,
   onSendMessage,
+  modelLabel,
   isLoading,
   onSelectCitation,
   onNavigateToTab: _onNavigateToTab,
@@ -102,9 +111,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <div className="chat-empty-hero-container">
           <div className="chat-hero-content">
             <div className="hero-greeting-block">
-              <h1 className="hero-greeting-title">SAAR Financial Workspace</h1>
+              <h1 className="hero-greeting-title">Ask about your records</h1>
               <p className="hero-greeting-subtitle">
-                Private, local-first intelligence operating directly over your encrypted ledger records via Qwen2.5-3B.
+                Figures are calculated from your imported documents and bank rows. Everything stays on this computer.
               </p>
             </div>
 
@@ -141,7 +150,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               </div>
               <div className="composer-footer-row">
                 <span className="composer-meta-text">
-                  Qwen2.5-3B · CPU AVX2 · Zero cloud telemetry · Local SQLite
+                  Verified answers are calculated from your records. Text written by {modelLabel} is marked as not verified.
                 </span>
               </div>
             </div>
@@ -194,7 +203,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 onClick={() => onSelectCitation(cite)}
                                 title={`Inspect source evidence for ${cite}`}
                               >
-                                <span>[{cite}]</span>
+                                <span>{citationLabel(cite)}</span>
                               </button>
                             ))}
                           </div>
@@ -241,7 +250,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <span className="thinking-dot" />
                       <span className="thinking-dot" />
                       <span className="thinking-label">
-                        Reasoning over local SQLite ledger via Qwen2.5-3B...
+                        Working on it...
                       </span>
                     </div>
                   </div>
